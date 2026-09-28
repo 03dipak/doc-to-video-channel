@@ -1,0 +1,46 @@
+# Python-generated files
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+
+# Virtual environments
+.venv
+
+# Secrets — copy from .env.example, never commit
+.env
+
+# Generated media + secrets
+output/
+slides_tmp/
+*.mp3
+*.mp4
+# moviepy temporaries, 4.2 MB each, produced at the repo root
+*temp_mpy_wvf_snd.mp3
+
+# Caches / tool artifacts
+.coverage
+.coverage.*
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.temp/
+*:Zone.Identifier
+
+# The vendored pipeline, per docs/LLD-tutorial-lane.md §5.1. Until the copy
+# lands these paths do not exist; the lines are here so the first `git add .`
+# after a V0 commit cannot sweep them in by accident. §5.3's vendor_manifest.json
+# is NOT ignored: it is the record of what was taken and what was left.
+src/doc_to_video_channel/vendor_manifest.json.tmp
+
+# The course-transcript corpus. RIGHTS.md §0 permits local parser-fixture use
+# only, and §8.4 requires it referenced by external path, gitignored, with
+# synthetic .docx for CI. Never commit these.
+transcripts/
+*.docx
+
+# WIP artefacts from the review cycle. docs/adopt.txt and docs/claude-review.txt
+# were transient triages, folded into docs/LLD-tutorial-lane.md §15 and removed.
+*-summary.txt

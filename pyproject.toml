@@ -1,0 +1,103 @@
+[project]
+name = "doc-to-video-channel"
+version = "0.1.0"
+description = "Narrated, source-traceable tutorial videos: a deterministic pipeline where code decides what is true"
+readme = "README.md"
+authors = [
+    { name = "03dipak", email = "03dip.vaidya@gmail.com" }
+]
+requires-python = ">=3.12"
+dependencies = [
+    "edge-tts>=7.2.8",
+    "moviepy>=2.2.1",
+    "pillow>=11.3.0",
+    "pydantic>=2.13.5",
+    "pygments>=2.21.0",
+    "python-docx>=1.2.0",
+    "python-dotenv>=1.2.3",
+    "python-pptx>=1.0.2",
+    "requests>=2.34.2",
+]
+# NO dependency on `doc-to-video-tutor`. That project is a BASELINE REFERENCE
+# only: read it for its measurements, its gate structure and its failure
+# records. Nothing here imports it, installs it, or depends on its version.
+# The pipeline this channel needs is vendored into this package, so the two
+# projects can move independently -- see docs/LLD-tutorial-lane.md §5.
+
+[project.scripts]
+doc-to-video-channel = "doc_to_video_channel:main"
+
+[build-system]
+requires = ["uv_build>=0.12.2,<0.13.0"]
+build-backend = "uv_build"
+
+# ---------------------------------------------------------------------------
+# P0-b. These four blocks were ABSENT, which meant six dev tools were installed
+# and none configured: `ruff check .` reported "All checks passed!" and
+# `pytest --co` reported "no tests collected" over a 66-byte file. A green gate
+# over nothing is the failure class docs/scratch.md §1 records, so the gate is
+# only worth having once it can fail.
+# ---------------------------------------------------------------------------
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "W", "F", "I", "UP", "B", "SIM", "ARG", "RUF"]
+ignore = [
+    "ARG001",   # unused function args (kept for API symmetry)
+    "RUF001",   # confusable characters (Unicode symbols used in UI)
+    "RUF003",   # confusable characters in strings
+]
+
+[tool.mypy]
+python_version = "3.12"
+plugins = []
+# Strict everywhere. The engine relaxes `disallow_untyped_defs` for its
+# `studio` package because that tree is large and mature; this package is small
+# and new, so there is no reason to start with an exemption.
+ignore_missing_imports = true
+check_untyped_defs = true
+disallow_untyped_defs = true
+warn_return_any = true
+warn_unused_ignores = true
+strict_optional = true
+warn_redundant_casts = true
+no_implicit_optional = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+# `--strict-markers` so a typo'd marker fails instead of silently not applying.
+# A silently-unapplied marker is the same class of silent zero as a caption gate
+# that writes no .vtt -- see docs/REQUIREMENTS.md NFR-004.
+addopts = "-q --strict-markers"
+
+[tool.coverage.run]
+source = ["doc_to_video_channel"]
+branch = true
+omit = ["*/__main__.py"]
+
+[tool.coverage.report]
+show_missing = true
+exclude_lines = [
+  "pragma: no cover",
+  "if __name__ == .__main__.:",
+  "raise NotImplementedError",
+  "if TYPE_CHECKING:",
+]
+# NO fail_under yet, deliberately. The engine's floor is 58 against a measured
+# baseline; this package has one function, so any floor would be a number with
+# no population behind it. It gets set when there is code to measure over --
+# a floor stated before the measurement is a stored claim, not a gate.
+
+[dependency-groups]
+dev = [
+    "hypothesis>=6.168.3",
+    "mypy>=2.3.1",
+    "pytest>=9.1.1",
+    "pytest-cov>=7.1.0",
+    "ruff>=0.16.9",
+    "types-requests>=2.33.0.20260906",
+]
