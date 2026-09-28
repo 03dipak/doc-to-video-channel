@@ -285,19 +285,24 @@ def _topic_for(steps: list[Step], chapter: Chapter) -> str:
 
 
 def _code_for(steps: list[Step]) -> tuple[str, str]:
-    """The scene's command and the context line above it.
+    """The scene's command, and what follows it when there is more than one.
 
     A scene that groups two steps shows the first command as the snippet and names
     the rest, because a code box holding two unrelated commands teaches neither.
+
+    **A single command gets NO context box.** The first version built the context by
+    starting from `commands[0]` and appending the later ones, so with one command the
+    renderer's "COMMAND CONTEXT" box repeated the snippet verbatim -- the same
+    `curl -LsSf ... | sh` twice on one slide. Found by looking at a rendered frame,
+    not by reading the plan, which held the duplication in two fields that both looked
+    individually correct.
     """
     commands = [str(s.command or "").strip() for s in steps if str(s.command or "").strip()]
     if not commands:
         return "", ""
-    context = commands[0]
-    context = commands[0]
-    for extra in commands[1:]:
-        context += f"\n# then: {extra}"
-    return commands[0], context
+    if len(commands) == 1:
+        return commands[0], ""
+    return commands[0], "\n".join(f"# then: {c}" for c in commands[1:])
 
 
 def project(board: Storyboard, *, target_scenes: int = TARGET_SCENES) -> Projection:
