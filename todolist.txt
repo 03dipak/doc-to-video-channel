@@ -7,84 +7,42 @@ is a measurement, not a setting, not a fact about the past. See AGENTS.md.
 =============================================================================
 RESUME HERE
 =============================================================================
-Two things, in this order. Nothing else is blocked.
+NEXT SESSION (OWNER'S REQUEST): build the command for `source/uv.md`.
 
-1. THE OWNER DECIDES: chaptered mode. Everything below is unblocked either way,
-   but V-4 is not -- see "OPEN, AND IT BREAKS A CONSTANT".
+  The storyboard path is proven: `render` projects and refuses. What has NOT been
+  tried is a storyboard whose source document is a real FILE at `source/uv.md`.
+  Today's source is `sources/uv-getting-started.md`; the citations and the 7
+  unanchored scenes block a shippable lesson, and every gap is authoring, not code.
+  Verify whether `source/uv.md` should be the new canonical source, then author the
+  citations/takeaways/reworded-repeats against it and render default (no override).
 
-2. DONE: V-1, the render spike. RENDER PATH VERIFIED. See "V-1" below. Two
-   findings came out of it and one of them blocks any real video -- see F1 below.
-
-3. DONE: F1 is RULED and IMPLEMENTED. LLD 12.6. A command the storyboard declares
-   on screen is protected terminology; the prose around it stays gated.
-   spoken_command_trigrams() spells a flag the way TTS says it, so the protected
-   span matches the narration being gated rather than the command text -- which is
-   why it is a tokeniser and not a search. Proven against the REAL gate in both
-   directions: 3 findings -> 0 with the protection, and refused without it. The
-   spike's declared exemption is REMOVED and the fixture is now CLEAN.
-
-4. DONE: V0. vendor_manifest.json exists, VERIFIES against the tree at a7d63e0, and
-   VENDOR_REF now exists as a constant. AC#33's three clauses are each proved by a
-   test. It also caught a stale figure in this very file's build order -- see below.
-
-5. DONE: V1. The three modules are in the tree, byte-identical to VENDOR_REF,
-   A5 is fixed, and AC#17(a) turned out to be FALSE in the code we copied. See
-   "V1 -- DONE" below.
-
-6. DONE: V2. 211 lines, both byte-identical; AC#7 needed a real change and
-   AC#6 turned out to be already met. See "V2 -- DONE" below.
-
-7. DONE: V3. AC#31 PROVEN IN PIXELS, not asserted in config. And the first
-   attempt was measuring nothing, which the differential caught. See below.
-
-8. DONE: V4. 2,505 lines, byte-identical plus one annotation, and the section 5.6
-   harness landed WITH it as the LLD requires. The tree is KNOWINGLY UNIMPORTABLE
-   at this step and the gate could not see it. See "V4 -- DONE" below.
-
-9. DONE: V5. 6,821 lines, the tree IMPORTS, plan_lesson is callable, write_media
-   is the working chokepoint, A44 landed, A43 settled. See "V5 -- DONE" below.
-   NOT DONE at V5: the burn-in stage (D1). It is still open.
-
-10. THEN: V6 -- the 7 baseline test files, import-rename only. Closes AC#32: the
-    collection report must show the expected count AND the run count, so a
-    silently skipped file is visible. Expect 74 mypy errors here, which is why the
-    gate is `mypy src` and not `mypy src tests`.
-
-11. THEN: V7 -- the seam: the behavioural differential (which can now actually
-    run, because both _ask_llm_stable bindings are patchable), the ownership audit,
-    and the two renderers x every SectionKind.
-
-12. STILL OPEN, and it needs a decision, not more work: the BURN-IN STAGE (D1).
-    D1 ruled captions are burned in, and that is a new render stage crossing BOTH
-    renderers. It has not been built. AC#30 instruments 1 and 2 are unmeasurable
-    until it lands.
-
-6. NOT BUILT, ON PURPOSE: the files themselves. V0 measures intent; V1-V5 copy.
-   A manifest built from the LLD's table would agree with the table by
-   construction and could never detect the table being wrong, so every count and
-   hash in it is MEASURED against the named reference.
-     RECIPE, recovered from the baseline's own render branch and re-measured:
-       * Build a FIXTURE plan.json with 5 scenes. 5, not 1: MIN_SCENES is 5 and the
-         gate refuses fewer in BOTH branches.
-       * script = speech.build_tts_script(plan, voice)
-       * cli._render_media(plan, out_base, script, voice, skip_video=False,
-         pause=..., end_hold=...)
-       * That is the whole spike. _render_media is the render path: it calls
-         render_scenes, synth_scenes, writes .word_timings.json, calls
-         _write_webvtt, keeps the audio clips and assembles the video.
-       * WHY _render_media and not the CLI, and why not a hand-rolled sequence:
-         the GATE (_render_blocking_problems) is called in the CLI branch, NOT
-         inside _render_media. So calling it directly bypasses the gate and keeps
-         the entire render path including _write_webvtt. Reimplementing the five
-         calls by hand would be a second implementation to keep correct.
-       * The fixture MUST be labelled. The gate checks source_refs for PRESENCE,
-         not resolution, so a plan can point at nothing and still pass. A green
-         render whose provenance points at an invented file is worse than no
-         render, because it looks like evidence.
-       * Instruments to record: published-MP4 loudness (D2's band), the .vtt cue
-         count, the word-timing token count, and the narration containing the tool
-         name. Caption geometry is NOT measurable until the burn-in stage lands
-         (D1, V5) -- record it as blocked, not as passing.
+  WHERE IT STANDS WHEN YOU RETURN -- re-measure, don't trust the numbers cold:
+  - The gate is FOUR commands (AGENTS.md "Facts that will bite you"):
+      ruff check src tests && mypy src && pytest -q &&
+      python -m coverage report --include="src/doc_to_video_channel/*.py" --fail-under=95
+    The fourth step is NOT optional. Measured 2026-09-28: ours 726 stmts 96%,
+    whole tree 6,276 stmts 68%. The 95 floor caught 60 untested lines at 88% (exit
+    2) before they were removed.
+  - `render STORYBOARD.json` is BUILT and refuses an unshippable lesson at exit 4.
+    The real storyboard is 1-of-8 anchored, so the default path writes nothing.
+    `--allow-unshippable` renders 38 PNG frames to `out/uv-install/` for inspection.
+    All five exit codes are distinct and measured: 0 / 2 / 3 / 4.
+  - `build`, `review`, `tts-check`, `verify` still exit 3. A green gate is NOT a
+    working CLI.
+  - Remaining 9 guard_plan problems on the real storyboard, none a code defect:
+    7x missing source_refs (the unanchored scenes), 5 narration repeats from the
+    storyboard's own authored checkpoint/state_change text, 1 opening label drift
+    ("uv is NOT installed" vs "install and verify") -- left to fail visibly, do not
+    reword to satisfy the gate.
+  - PENDING, from earlier sessions (do not re-litigate unless new evidence):
+    - F1 RULED (LLD 12.6, spoken_command_trigrams).
+    - V0-V5 DONE (manifest verifies against a7d63e0).
+    - V6 DONE (315 reference tests, import-rename only; the V4 dropped-facade
+      ruling was FALSIFIED -- row 18 is a copy, whole tree imports).
+    - V7 DONE (the seam); the lesson is blocked on AUTHORING, not the seam.
+    - D1 DONE (captions burned into PPTX and MP4; AC#30 instrument 1 is
+      owner-ruled UNGATEABLE, keep instrument 2).
+    - 24 reference-test skips inherited, uninvestigated.
 
 
 =============================================================================
@@ -95,11 +53,16 @@ used to, and the file contradicted itself: "54 tests" in one line and "96 tests"
 in another, one commit apart, because restating a measurement is how a stored
 number outlives the thing it measured. Three times in two days. **Run these:**
 
-  GATE       .venv/bin/ruff check src tests && .venv/bin/mypy src && .venv/bin/pytest
+  GATE       .venv/bin/ruff check src tests && .venv/bin/mypy src && \
+             .venv/bin/pytest -q && .venv/bin/python -m coverage report \
+             --include="src/doc_to_video_channel/*.py" --fail-under=95
   TYPING     .venv/bin/mypy tests          # the gate is `mypy src` BY DECISION --
                                            # the 7 vendored test files carry 74
                                            # errors. Ours are typed and stay typed.
   COVERAGE   .venv/bin/pytest --cov --cov-report=term-missing
+             # whole-tree floor is 60 in pyproject; the scoped 95 is the FOURTH
+             # gate command above. Two floors, two commands. A floor written in
+             # prose is a comment -- see AGENTS.md.
              ^ The default report is SCOPED to our own 5 modules by an `include`
                in pyproject's [tool.coverage.report], and fail_under = 95 applies
                to that scope. The whole-tree figure is a DIFFERENT number and is
@@ -119,7 +82,8 @@ it is not something to "fix" by setting a floor on a population that has not bee
 measured yet.
 
 WHAT IS TRUE, AND IS ABOUT THE WORK RATHER THAN A MEASUREMENT:
-  * A GREEN GATE IS NOT A WORKING CLI. All five verbs are declared; all five exit 3.
+  * A GREEN GATE IS NOT A WORKING CLI. Four verbs are declared and exit 3;
+    `render` is built (PNG frames from a storyboard, exit 4 on refusal).
   * V-1 DONE. The render path is verified: 5 artefacts, 172.6 s, 1280x720, 40 .vtt
     cues, 303 word tokens. Three instruments did not pass and the reasons are in
     spikes/V1-RESULTS.md.
@@ -141,12 +105,14 @@ WHAT IS TRUE, AND IS ABOUT THE WORK RATHER THAN A MEASUREMENT:
     invert the build order. A half-applied refusal would be a WORSE defect than the
     one being fixed.
   * The vendored modules live in doc_to_video_channel/studio/ -- see the path
-    mapping below. The façade is still dropped; our marker re-exports nothing.
+    mapping below. The façade shipped DROPPED at V4 (that was the false ruling
+    V6 falsified); it is now COPIED -- row 18 -- and the whole tree imports.
 
-A GREEN GATE IS NOT A WORKING CLI. All five verbs are declared and all five exit 3:
-build, review, tts-check, verify and render do nothing yet, and the pipeline they
-will call is not vendored until V1-V5. Do not read "Phase 0 complete" as "the tool
-runs". The gate command is `mypy src` and stays so: the 7 vendored test files carry
+A GREEN GATE IS NOT A WORKING CLI. Four verbs are declared and all four exit 3:
+build, review, tts-check and verify do nothing yet, and the pipeline they will
+call is not vendored until V1-V5. `render` IS built and refuses an unshippable
+storyboard at exit 4. Do not read "Phase 0 complete" as "the tool runs". The gate
+command is `mypy src` and stays so: the 7 vendored test files carry
 74 mypy errors, so widening it breaks at V6. The channel's OWN tests are typed and
 pass `mypy tests` cleanly, so the V6 delta stays attributable.
 
@@ -957,7 +923,10 @@ V1 -- DONE. 955 lines, byte-identical, plus A5. AC#17(a) WAS FALSE.
   facade is dropped" and concluded "therefore no directory", which are two
   different decisions. The 16 vendored modules now live in
   doc_to_video_channel/studio/. The facade is still dropped: our marker there
-  re-exports NOTHING, and a test parses its AST to prove it. That test first
+  re-exports NOTHING, and a test parses its AST to prove it. (HISTORICAL --
+  V6 FALSIFIED the dropped-facade ruling; row 18 is now a COPY and whole-tree
+  imports work. See the V6 section. This paragraph describes V3's truth.) That
+  test first
   searched the raw source for the string "import " and failed on a docstring
   containing the words "one import path" -- a test that cannot tell a word from the
   code using it is not a test. It has teeth: appending a re-export makes it fail.
