@@ -1,0 +1,877 @@
+"""TTS synthesis and moviepy assembly of frames+audio into the final .mp4."""
+
+from __future__ import annotations
+
+import asyncio
+import contextlib
+import json
+import re
+import shutil
+import subprocess
+import tempfile
+import time
+from collections.abc import Sequence
+from pathlib import Path
+from typing import Any
+
+from .config import (
+    LOUDNESS_LRA,
+    LOUDNESS_TARGET,
+    LOUDNESS_TP,
+    TITLE_HOLD,
+    TTS_LOUDNORM,
+    TTS_VOICE,
+)
+
+# The duration contract lives in `duration.py` so the planner can use it without
+# importing moviepy. Re-exported here because `cli.py` and the tests reach these
+# through this module, and moving a definition should not silently break callers.
+from .duration import duration_verdict as _duration_verdict
+from .duration import (
+    reachable_duration_band,  # noqa: F401
+    structural_silence_seconds,
+    words_for_target,  # noqa: F401
+)
+from .pptx import build_pptx
+from .slides import _render_title_card, render_scenes
+from .text import _nar_tokens
+from .util import _Progress
+from .writer import write_media
+
+#: The commit the vendored copy came from, stamped into every media manifest
+#: by `write_media` so a shipped artefact can name its own origin (AC#26, 6.3).
+_VENDOR_REF = "a7d63e0"
+
+# edge-tts reports boundary offsets in 100-nanosecond ticks.
+_TICKS_PER_SECOND = 10_000_000
+# Shortest a reveal variant may be held: a sub-second slide reads as a flash,
+# which the no-sub-1.5s-flash rule in the media contract forbids.
+_MIN_VARIANT_SECONDS = 0.8
+
+
+async def _scene_audio(text: str, out_path: Path, voice: str,
+                       rate: str = "-8%", pitch: str = "+0Hz",
+                       volume: str = "+0%") -> list[dict]:
+    """Synthesize one clip and return its per-word timings.
+
+    `edge-tts` already emits a `WordBoundary` event per word (offset, duration,
+    text) when the stream is consumed with `boundary="WordBoundary"`, and it
+    applies offset compensation across chunked input so the timings stay
+    continuous for the whole narration. Writing the audio with `.save()` throws
+    that data away, which is why reveal timing had to guess. Consuming the stream
+    ourselves costs nothing extra and yields the timing for free.
+    """
+    import edge_tts
+
+    communicate = edge_tts.Communicate(text, voice, rate=rate, pitch=pitch,
+                                       volume=volume, boundary="WordBoundary")
+    timings: list[dict] = []
+    with open(out_path, "wb") as handle:
+        async for chunk in communicate.stream():
+            if chunk["type"] == "audio":
+                handle.write(chunk["data"])
+            elif chunk["type"] == "WordBoundary":
+                timings.append({
+                    "text": str(chunk.get("text", "")),
+                    "start": round(float(chunk.get("offset", 0))
+                                   / _TICKS_PER_SECOND, 4),
+                    "duration": round(float(chunk.get("duration", 0))
+                                      / _TICKS_PER_SECOND, 4),
+                })
+    return timings
+
+
+# Real loudness readings, harvested from the loudnorm pass the build already
+# runs and previously discarded. The build printed `LOUDNESS_TARGET` /
+# `LOUDNESS_TP` - the configured constants - under a "loudness :" label, so the
+# log reported a target as though it were a measurement. A reviewer checking the
+# artifacts against the log found the true peak was -1.8 dBTP against a printed
+# -1.5. Same collector shape as `slides.LAYOUT_NOTES` for the same reason: a
+# value computed during the build and thrown away has to be computed again by
+# whoever reviews it, and reviewers get expensive.
+LOUDNESS_MEASURED: list[dict] = []
+
+
+_EBU_I = re.compile(r"\bI:\s*(-?[0-9.]+|-inf)\s*LUFS")
+_EBU_PEAK = re.compile(r"\bPeak:\s*(-?[0-9.]+|-inf)\s*dBFS")
+
+
+def _ebur128(path: Path, mono: bool = False) -> dict:
+    """Integrated loudness and true peak of a finished file, via one ffmpeg pass.
+
+    Measured, never configured. The build used to print `LOUDNESS_TARGET` under
+    a "loudness :" label, and a reviewer then reported a mono-downmix failure at
+    -19.7 LUFS that does not reproduce by any of the three methods here
+    (ebur128 -ac 1, ebur128 stereo, loudnorm's own summary all read ~-16.7).
+    Recording the reading is what settles that class of disagreement: a number
+    you can re-derive beats a number someone asserts.
+    """
+    ffmpeg = shutil.which("ffmpeg")
+    if not ffmpeg or not path.exists():
+        return {}
+    # -vn matters: without it ffmpeg decodes 7904 frames of 720p to measure
+    # audio, which measured 11.2s against 4.6s for the same reading. A build
+    # that pays that on every run will get the check skipped.
+    cmd = [ffmpeg, "-hide_banner", "-nostats", "-vn", "-i", str(path),
+           "-af", "ebur128=peak=true"]
+    if mono:
+        cmd += ["-ac", "1"]
+    cmd += ["-f", "null", "-"]
+    try:
+        run = subprocess.run(cmd, capture_output=True, text=True, timeout=300)
+    except (OSError, subprocess.SubprocessError):
+        return {}
+    got: dict = {}
+    hits = _EBU_I.findall(run.stderr)
+    if hits and hits[-1] not in ("-inf", ""):
+        with contextlib.suppress(ValueError):
+            got["integrated_lufs"] = float(hits[-1])
+    peaks = _EBU_PEAK.findall(run.stderr)
+    if peaks and peaks[-1] not in ("-inf", ""):
+        with contextlib.suppress(ValueError):
+            got["true_peak_dbfs"] = float(peaks[-1])
+    return got
+
+
+def measure_delivery(out_base: Path) -> dict:
+    """Everything a reviewer would otherwise have to re-measure by hand.
+
+    Container facts plus the delivered audio's loudness in both the delivered
+    stereo form and downmixed to mono. The mono figure is the one that catches
+    a channel-summation illusion: BS.1770 sums identical L/R with +3 dB, so a
+    file can measure compliant in stereo and fail once a QC pass downmixes it.
+    It passes today (-16.7 both ways) - recorded so that stays checkable.
+    """
+    import json as _json
+    out: dict = {}
+    mp4 = Path(f"{out_base}.mp4")
+    probe = shutil.which("ffprobe")
+    if probe and mp4.exists():
+        cmd = [probe, "-v", "error", "-show_entries",
+               "format=duration,bit_rate", "-show_entries",
+               "stream=codec_type,width,height,r_frame_rate,bit_rate,channels",
+               "-of", "json", str(mp4)]
+        try:
+            run = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
+            data = _json.loads(run.stdout or "{}")
+        except (OSError, subprocess.SubprocessError, ValueError):
+            data = {}
+        fmt = data.get("format") or {}
+        if fmt.get("duration"):
+            with contextlib.suppress(ValueError):
+                out["seconds"] = round(float(fmt["duration"]), 3)
+        if fmt.get("bit_rate"):
+            with contextlib.suppress(ValueError):
+                out["total_bps"] = int(fmt["bit_rate"])
+        for s in data.get("streams") or []:
+            if s.get("codec_type") == "video":
+                out["width"], out["height"] = s.get("width"), s.get("height")
+                out["fps"] = s.get("r_frame_rate")
+                if s.get("bit_rate"):
+                    with contextlib.suppress(ValueError):
+                        out["video_bps"] = int(s["bit_rate"])
+            elif s.get("codec_type") == "audio":
+                out["audio_channels"] = s.get("channels")
+                if s.get("bit_rate"):
+                    with contextlib.suppress(ValueError):
+                        out["audio_bps"] = int(s["bit_rate"])
+    if mp4.exists():
+        stereo = _ebur128(mp4)
+        if stereo:
+            out["loudness"] = stereo
+        mono = _ebur128(mp4, mono=True)
+        if mono:
+            out["loudness_mono_downmix"] = mono
+    clips = []
+    for c in sorted(Path(f"{out_base}_audio").glob("*.mp3")):
+        entry = {"clip": c.name, "bytes": c.stat().st_size}
+        clips.append(entry)
+    if clips:
+        out["clips"] = len(clips)
+        out["loudness_target_lufs"] = LOUDNESS_TARGET
+        out["loudness_target_dbtp"] = LOUDNESS_TP
+        measured = [m for m in LOUDNESS_MEASURED if "integrated_lufs" in m]
+        if measured:
+            out["clip_lufs_range"] = [min(m["integrated_lufs"] for m in measured),
+                                       max(m["integrated_lufs"] for m in measured)]
+            out["clip_true_peak_dbtp"] = max(
+                m["true_peak_dbtp"] for m in measured if "true_peak_dbtp" in m)
+    return out
+
+
+def _parse_loudnorm(stderr: str) -> dict:
+    """Pull the loudness readings out of ffmpeg's loudnorm summary.
+
+    "Output Integrated" / "Output True Peak" are what the normalised file now
+    contains, i.e. the delivered loudness; "Input *" is what the TTS provider
+    produced. Report the output, keep the input so a reviewer can see the gain
+    that was applied. Split out as a pure function so it can be pinned without
+    ffmpeg, a network call, or a real clip.
+    """
+    fields = (("integrated_lufs", "Output Integrated"),
+              ("true_peak_dbtp", "Output True Peak"),
+              ("in_integrated_lufs", "Input Integrated"),
+              ("in_true_peak_dbtp", "Input True Peak"),
+              ("lra_lu", "Input LRA"))
+    out: dict = {}
+    for line in stderr.splitlines():
+        for key, field in fields:
+            if field in line:
+                with contextlib.suppress(IndexError, ValueError):
+                    out[key] = float(line.split(":")[1].split()[0])
+    return out
+
+
+def _normalize_loudness(path: Path) -> bool:
+    """One-pass EBU R128 loudness normalization (rule C3) via ffmpeg loudnorm.
+
+    Targets integrated -{LOUDNESS_TARGET} LUFS / {LOUDNESS_TP} dBTP so back-to-back
+    scenes don't audibly jump. Returns False (keeps the original file) when
+    ffmpeg is unavailable or the filter fails, so TTS output is never destroyed.
+    """
+    ffmpeg = shutil.which("ffmpeg")
+    if not ffmpeg:
+        print("  WARN: ffmpeg not on PATH; skipping loudness normalization")
+        return False
+    probe_dir = Path(tempfile.mkdtemp(prefix="loudnorm_"))
+    tmp = probe_dir / path.name
+    limiter_tp = LOUDNESS_TP - 0.5
+    peak_limit = max(0.0001, min(1.0, 10 ** (limiter_tp / 20.0)))
+    try:
+        run = subprocess.run(
+            [ffmpeg, "-y",
+             "-i", str(path),
+             # print_format=summary is what makes loudnorm report what it
+             # measured. Without it the filter chain normalises silently and
+             # the numbers the log used to print were the config constants.
+             "-af", (f"loudnorm=I={LOUDNESS_TARGET}:TP={LOUDNESS_TP}:"
+                     f"LRA={LOUDNESS_LRA}:print_format=summary,"
+                     f"alimiter=limit={peak_limit:.6f}:"
+                     "attack=5:release=50:level=disabled"),
+             "-ac", "1", "-ar", "44100",
+             "-codec:a", "libmp3lame", "-q:a", "2",
+             str(tmp)],
+            capture_output=True, text=True, timeout=120)
+        if run.returncode != 0:
+            print(f"  WARN: loudnorm failed for {path.name}; keeping original "
+                  f"({run.stderr.strip().splitlines()[-1:]})")
+            return False
+        # loudnorm reports what it measured on the way through. Keep it.
+        measured = _parse_loudnorm(run.stderr)
+        if measured:
+            LOUDNESS_MEASURED.append({"clip": path.name, **measured})
+        # `os.replace` is rename(2): it cannot cross a filesystem boundary and
+        # fails EXDEV. The build's work dir and TMPDIR are usually the same
+        # device so this stayed hidden, but with the output dir elsewhere every
+        # clip silently skipped normalisation and shipped at edge-tts' own
+        # level. `shutil.move` falls back to copy+unlink.
+        shutil.move(str(tmp), str(path))
+        return True
+    except (OSError, subprocess.SubprocessError) as exc:
+        print(f"  WARN: loudnorm skipped for {path.name}: {exc}")
+        return False
+    finally:
+        with contextlib.suppress(OSError):
+            probe_dir.rmdir()
+
+
+def _clip_voice(script: dict, voice: str | None) -> tuple[str, str, str, str]:
+    v = voice or script.get("tts_voice") or TTS_VOICE
+    return (v, str(script.get("rate", "-8%")),
+            str(script.get("pitch", "+0Hz")),
+            str(script.get("volume", "+0%")))
+
+
+def _spoken_tokens(text: str, rules: tuple | None) -> list[str]:
+    """Tokens of ``text`` in the same form the provider actually spoke.
+
+    The word stream we match against comes from `WordBoundary` events, which
+    segment the *post-expansion* spoken text. A bullet is stored raw, so digits,
+    snake_case identifiers and the M1-M12 rules all differ between the two sides.
+    Measured on a real render: 0 of 383 boundary words were digits while 11 were
+    number-words, so a bullet containing `3` could never match a stream holding
+    `three` - at any weighting. Canonicalising the bullet through the same
+    `speech_expand` the TTS text went through removes that asymmetry.
+    """
+    if not rules:
+        return _nar_tokens(str(text))
+    from .speech import speech_expand
+
+    return _nar_tokens(speech_expand(str(text), rules))
+
+
+_MIN_MATCH_WINDOW = 4
+
+
+def _stream_weights(flat: list[str]) -> dict[str, float]:
+    """Inverse-frequency weight for every token in one scene's word stream.
+
+    Scoped to the scene rather than a corpus, so it needs no training data and
+    stays a pure function of what the provider actually said. It is what stops a
+    word the narrator repeats in surrounding prose from dominating the match: in
+    the real lesson `structure` occurs 4 times in one clip, so it counts for far
+    less than `engine` or `comparing`, which occur once.
+    """
+    import math
+
+    counts: dict[str, int] = {}
+    for tok in flat:
+        counts[tok] = counts.get(tok, 0) + 1
+    total = max(len(flat), 1)
+    return {tok: math.log(1.0 + total / count) for tok, count in counts.items()}
+
+
+def _best_window(flat: list[str], cursor: int, tokens: list[str],
+                 weights: dict[str, float]) -> tuple[int, float]:
+    """Index of the best-matching position at or after ``cursor``, and its score.
+
+    Every occurrence of any bullet token is a candidate; each is scored by the
+    weighted fraction of the bullet's *whole* token set that appears in a short
+    window starting there. Scoring the neighbourhood rather than a single anchor
+    is what fixes both measured failures: a token repeated in prose no longer
+    wins just by being first, and two bullets that share an anchor are separated
+    by the rest of their text.
+    """
+    wanted = {tok for tok in tokens}
+    if not wanted:
+        return -1, 0.0
+    total = sum(weights.get(tok, 1.0) for tok in wanted)
+    # The window is the bullet's own spoken span. Widening it does not buy
+    # recall - a bullet is still located whenever *any* of its tokens is found -
+    # it only blurs position, because a wider window lets an early mention in
+    # surrounding prose scoop up the tokens of the real bullet further along.
+    window = max(_MIN_MATCH_WINDOW, len(wanted))
+    best_at, best_score = -1, 0.0
+    for index in range(cursor, len(flat)):
+        if flat[index] not in wanted:
+            continue
+        seen = {tok for tok in flat[index:index + window] if tok in wanted}
+        score = sum(weights.get(tok, 1.0) for tok in seen) / total
+        if score > best_score:
+            best_at, best_score = index, score
+    return best_at, best_score
+
+
+def _bullet_start_times(bullets: list[str], timings: list[dict],
+                        rules: tuple | None = None) -> list[float]:
+    """First-spoken time for each bullet, or -1 when it cannot be located.
+
+    Matching is token-level against the same canonical tokenizer the repeat
+    machinery uses. The narration contract deliberately stops the model reading
+    bullets verbatim (§7.5), so a verbatim phrase match would almost always miss
+    and silently degrade every scene to an even split; a single anchor token
+    survives rephrasing but is too weak to place a reveal, because the narrator
+    usually mentions the same words in the surrounding prose first. So a
+    candidate position is scored by how much of the bullet appears *around* it,
+    weighted by how rare each token is in this scene (see `_stream_weights`).
+    The search stays monotonic — bullets are spoken in listed order, so the cursor
+    only moves forward — and a bullet that cannot be located returns -1, which
+    makes the caller fall back to an even split for that scene alone.
+
+    ``rules`` are the profile's pronunciation rules; see `_spoken_tokens` for why
+    the bullet side has to be expanded before it can be compared.
+    """
+    if not bullets or not timings:
+        return []
+    words = [(float(t.get("start", 0.0)), _nar_tokens(str(t.get("text", ""))))
+             for t in timings]
+    flat = [tok for _, toks in words for tok in toks]
+    starts: list[float] = []
+    for start, toks in words:
+        starts.extend([start] * len(toks))
+    weights = _stream_weights(flat)
+    out: list[float] = []
+    cursor = 0
+    for bullet in bullets:
+        tokens = {t for t in _spoken_tokens(bullet, rules) if len(t) >= 4}
+        if not tokens:
+            out.append(-1.0)
+            continue
+        at, _score = _best_window(flat, cursor, sorted(tokens), weights)
+        if at < 0:
+            out.append(-1.0)
+            continue
+        out.append(starts[at])
+        cursor = at + 1
+    return out
+
+
+def _variant_durations(scene_dur: float, variant_count: int,
+                       bullets: list[str] | None = None,
+                       timings: list[dict] | None = None,
+                       rules: tuple | None = None) -> list[float]:
+    """Split a scene's audio across its reveal variants.
+
+    With word timings the split follows the narration: each variant starts when
+    its bullet is actually spoken. Without usable timings - no provider data, a
+    bullet that was never spoken, or a degenerate match order - it falls back to
+    the previous even split, so this can never shorten or lose audio.
+    """
+    if variant_count <= 1:
+        return [scene_dur]
+    per_variant = (scene_dur - min(scene_dur * 0.15, 3.0)) / (variant_count - 1)
+    fallback = [min(scene_dur * 0.15, 3.0)] + [per_variant] * (variant_count - 1)
+    starts = _bullet_start_times((bullets or [])[:variant_count - 1],
+                                 timings or [], rules)
+    if len(starts) != variant_count - 1 or any(s < 0 for s in starts):
+        return fallback
+    # Variant boundaries are the moments each bullet is spoken: the intro holds
+    # until bullet one starts, and the last variant runs to the end of the clip.
+    bounds: list[float] = []
+    previous = 0.0
+    for start in starts:
+        value = max(start, previous + _MIN_VARIANT_SECONDS)
+        if value >= scene_dur:
+            return fallback
+        bounds.append(value)
+        previous = value
+    durations = ([bounds[0]]
+                 + [bounds[i + 1] - bounds[i] for i in range(len(bounds) - 1)]
+                 + [scene_dur - bounds[-1]])
+    if len(durations) != variant_count or any(d <= 0 for d in durations):
+        return fallback
+    return durations
+
+
+def synth_scenes(script: dict, work_dir: Path, voice: str | None,
+                 pause: float = 3.0, end_hold: float = 6.0
+                 ) -> tuple[list[Path], list[list[dict]]]:
+    # Cleared per run, mirroring `slides.render_scenes` clearing `LAYOUT_NOTES`.
+    # Without this a second build in the same process inherits the first run's
+    # clip measurements, and the summary below would report the union of two
+    # builds' loudness as though it were one.
+    del LOUDNESS_MEASURED[:]
+    clips = script.get("clips", [])
+    p = _Progress("TTS", len(clips))
+    texts = [str(c["spoken"]) for c in clips]
+    paths = [work_dir / (f"scene_{c.get('index', i):02d}.mp3")
+             for i, c in enumerate(clips)]
+    v, rate, pitch, volume = _clip_voice(script, voice)
+
+    async def _all() -> list[Any]:
+        clips: list[Any] = await asyncio.gather(*(
+            _scene_audio(text, path, v, rate, pitch, volume)
+            for text, path in zip(texts, paths, strict=True)
+        ))
+        return clips
+
+    all_timings = list(asyncio.run(_all()))
+    dead = _audit_clip_health(paths)
+    normalized = 0
+    if TTS_LOUDNORM != "off":
+        for clip_path in paths:
+            normalized += int(_normalize_loudness(clip_path))
+    for i in range(len(paths), 0, -1):
+        p._tick(i)
+    p.done()
+    if TTS_LOUDNORM != "off":
+        if LOUDNESS_MEASURED:
+            print(_loudness_line(LOUDNESS_MEASURED, normalized, len(paths)))
+        else:
+            print(f"  loudness : target {LOUDNESS_TARGET} LUFS / "
+                  f"{LOUDNESS_TP} dBTP, MEASUREMENT UNAVAILABLE "
+                  f"({normalized}/{len(paths)} clips normalized)")
+    if dead:
+        print(f"  WARN: {len(dead)} clip(s) look truncated or silent: "
+              f"{', '.join(dead[:4])}")
+    _report_measured_duration(paths, script, pause=pause, end_hold=end_hold)
+    return paths, all_timings
+
+
+def _clip_seconds(path: Path) -> float:
+    import subprocess
+
+    try:
+        out = subprocess.run(
+            ["ffprobe", "-v", "error", "-show_entries", "format=duration",
+             "-of", "csv=p=0", str(path)],
+            capture_output=True, text=True, timeout=30)
+        return float(out.stdout.strip())
+    except (ValueError, OSError, subprocess.SubprocessError):
+        return 0.0
+
+
+
+def _loudness_line(measurements: list[dict], normalized: int,
+                   total: int) -> str:
+    """The `loudness :` build-log line, from the per-clip loudnorm readings.
+
+    Two claims must not be confused, and this line used to confuse them.
+
+    Target vs measurement: the configured `LOUDNESS_TARGET` / `LOUDNESS_TP` are
+    constants, and printing them here is how -1.8 dBTP shipped as "-1.5 dBTP" in
+    every build log. The numbers below are parsed out of each clip's loudnorm
+    `print_format=summary`, so they are readings.
+
+    Per-clip vs delivered: they are read from the clips BEFORE they are
+    concatenated and muxed, and they are not what the viewer receives.
+    mod03_gates_v013 logged "-16.4..-16.1 LUFS / -1.5 dBTP" here; ffmpeg ebur128
+    on the delivered MP4 gives -16.7 LUFS and -5.1 dBTP. Both are in spec - the
+    true-peak target is a ceiling, so -5.1 is headroom rather than a fault - but
+    a reader holding this line next to the artifact would be comparing two
+    different signals. `verify.json` records both, under separate keys, for
+    exactly this reason.
+
+    Extracted as a function so the label is testable: `synth_scenes` reaches the
+    network for audio, so the string cannot otherwise be observed offline.
+    """
+    lufs = [m["integrated_lufs"] for m in measurements if "integrated_lufs" in m]
+    peaks = [m["true_peak_dbtp"] for m in measurements if "true_peak_dbtp" in m]
+    span = f"{min(lufs):.1f}..{max(lufs):.1f} LUFS" if lufs else "unmeasured"
+    pk = f"{max(peaks):.1f} dBTP" if peaks else "unmeasured"
+    return (f"  loudness : {span} / {pk} true peak, per clip pre-mux "
+            f"(target {LOUDNESS_TARGET} LUFS / {LOUDNESS_TP} dBTP, "
+            f"{normalized}/{total} clips via ffmpeg loudnorm); "
+            f"the muxed MP4 is measured separately")
+
+
+def _report_measured_duration(paths: list[Path], script: dict,
+                              pause: float = 3.0, end_hold: float = 6.0) -> None:
+    """Report the rendered duration and band it against the target.
+
+    The pre-audio gate can only estimate, because it runs before the provider is
+    called. Once the clips exist the estimate is no longer needed and is in fact
+    misleading: on mod03_gates_v023 the estimate said 2.84 min against a 4.0 min
+    target (71%, warning) while ffprobe measured 3.72 min (93%, no warning). Any
+    duration policy built on the estimate would have chased a defect that was not
+    there. So the authoritative number is printed from the audio, and the finding
+    is derived from that rather than from the estimate.
+
+    WHICH audio, though. This runs before the slides are muxed, so all it can
+    measure is the sum of the clips - and it used to print that sum as "measured"
+    beside "vs target", which is the number the user asked about. On
+    mod03_gates_v013 it printed 5.24 min / 131% where the delivered MP4 is
+    5.91 min / 148%: 40.4s of deliberate silence, 16.8 points of the overshoot,
+    reported as if it were teaching time. A reader acting on 131% would trim
+    narration that was already at the right length.
+
+    Both numbers are now printed, and the band is taken on the predicted
+    delivered length - clips plus the silence `assemble_video` is about to add -
+    because that is the quantity the target is about. The MP4 is measured for
+    real afterwards and recorded in `verify.json` under `duration.mp4_seconds`.
+    """
+    target = float(script.get("target_minutes") or 0.0)
+    total = sum(_clip_seconds(p) for p in paths)
+    if total <= 0:
+        return
+    measured_min = total / 60.0
+    silence = structural_silence_seconds(len(paths), pause, end_hold)
+    predicted_s = total + silence
+    predicted_min = predicted_s / 60.0
+    if target <= 0:
+        print(f"  duration  : {measured_min:.2f} min of clips "
+              f"({total:.1f}s across {len(paths)} clips) + {silence:.1f}s "
+              f"structural silence = {predicted_min:.2f} min delivered")
+        return
+    ratio = predicted_min / target
+    verdict, finding = _duration_verdict(ratio)
+    print(f"  duration  : {measured_min:.2f} min of clips ({total:.1f}s across "
+          f"{len(paths)}) + {silence:.1f}s structural silence = "
+          f"{predicted_min:.2f} min vs {target:.2f} min target = "
+          f"{ratio:.0%} [{verdict}] predicted; the muxed MP4 is measured "
+          f"separately")
+    if finding:
+        print(f"  [{verdict}] {finding} (advisory - this does not block the "
+              f"build; the fix is source-grounded teaching, not padding)")
+
+
+def _audit_clip_health(paths: list[Path]) -> list[str]:
+    """Flag clips that are effectively silent or carry long dead air.
+
+    `edge-tts` is an unofficial wrapper around a consumer endpoint, so a silent
+    breakage (an empty or near-empty MP3) is a real failure mode rather than a
+    theoretical one. ffmpeg is already a dependency, so `silencedetect` costs
+    nothing extra. This is a warning, not a hard gate: a short but valid clip
+    must not fail a build.
+    """
+    ffmpeg = shutil.which("ffmpeg")
+    if not ffmpeg:
+        return []
+    flagged: list[str] = []
+    for path in paths:
+        try:
+            result = subprocess.run(
+                [ffmpeg, "-hide_banner", "-nostats", "-i", str(path),
+                 "-af", "silencedetect=n=-45dB:d=2.0", "-f", "null", "-"],
+                capture_output=True, text=True, timeout=60)
+        except (OSError, subprocess.SubprocessError):
+            continue
+        if result.returncode != 0:
+            continue
+        silence = re.findall(r"silence_duration: ([\d.]+)", result.stderr)
+        total = sum(float(value) for value in silence)
+        try:
+            size = path.stat().st_size
+        except OSError:
+            size = 0
+        if size < 1024 or total > 6.0:
+            flagged.append(path.name)
+    return flagged
+_VTT_CUE_WORDS = 8          # words per caption cue before a forced break
+_VTT_BREAKS = ".!?।"   # end a cue at sentence punctuation
+
+
+def _write_webvtt(out_base: Path, script: dict,
+                  timings: Sequence[Sequence[dict] | None],
+                  audios: Sequence[Path] | None = None,
+                  pause: float = 3.0, lead_in: float = 0.0) -> int:
+    """Write a WebVTT caption track from the provider's own word stream.
+
+    `edge_tts.SubMaker` builds cues from the very same `WordBoundary` events that
+    drive reveal sync, so this costs nothing beyond a file write and needs no
+    alignment model. WebVTT is the interoperable form - any player or editor
+    reads it - whereas the JSON sidecar is a private format only this pipeline
+    consumes. Both are emitted because they answer different questions: the VTT
+    is for a human watching the lesson, the JSON for the renderer.
+
+    Clip-local offsets are rebased onto the assembled timeline, including the
+    inter-scene pause, so cue times line up with the rendered MP4 rather than
+    with the individual clip files. Failure is non-fatal by design: a missing
+    caption track must never cost a rendered lesson.
+    """
+    try:
+        import edge_tts
+    except ImportError:
+        return 0
+    maker = edge_tts.SubMaker()
+    fed = 0
+    # `lead_in` is the silent title card the video prepends before clip 1. The
+    # caption track is for a human watching the MP4, so it must be on the video's
+    # timeline, not the audio's. Measured on v012_015: every cue fired 7.000s
+    # early - TITLE_HOLD (4.0) plus the inter-clip pause (3.0) - because
+    # `base_s` started at 0 while the renderer started the first clip at 7.0.
+    # The VTT is written before that prepend happens, so the offset cannot be
+    # inferred here and has to be passed in.
+    base_s = lead_in
+    try:
+        for position, words in enumerate(timings):
+            if not words:
+                base_s += pause
+                continue
+            group: list[str] = []
+            group_start = 0.0
+            group_end = 0.0
+            for word in words:
+                start = base_s + float(word.get("start", 0.0))
+                end = start + float(word.get("duration", 0.0))
+                text = str(word.get("text", "")).strip()
+                if not text:
+                    continue
+                if not group:
+                    group_start = start
+                group.append(text)
+                group_end = end
+                # Break on sentence punctuation or on length, so a cue reads as
+                # a phrase. SubMaker emits exactly one cue per feed, so feeding
+                # raw word boundaries would caption the lesson one word at a
+                # time - technically synced, practically unreadable.
+                if len(group) >= _VTT_CUE_WORDS or text[-1] in _VTT_BREAKS:
+                    maker.feed({"type": "WordBoundary",
+                                "offset": int(group_start * 1e7),
+                                "duration": int(max(group_end - group_start, 0.0)
+                                                * 1e7),
+                                "text": " ".join(group)})
+                    fed += 1
+                    group = []
+            if group:
+                maker.feed({"type": "WordBoundary",
+                            "offset": int(group_start * 1e7),
+                            "duration": int(max(group_end - group_start, 0.0)
+                                            * 1e7),
+                            "text": " ".join(group)})
+                fed += 1
+            # Advance by the clip's MEASURED duration, not by its last word
+            # offset: every clip carries trailing silence after the final word,
+            # so advancing on word offsets drifts the captions progressively
+            # earlier and would leave the last scene's cues on top of the first.
+            spoken = (float(words[-1].get("start", 0.0))
+                      + float(words[-1].get("duration", 0.0)))
+            measured = 0.0
+            if audios is not None and position < len(audios):
+                measured = _clip_seconds(audios[position])
+            base_s += (measured or spoken) + pause
+        srt = maker.get_srt()
+    except Exception as exc:  # provider shape drift must not lose the render
+        print(f"  WARN: caption export skipped ({type(exc).__name__}: {exc})")
+        return 0
+    if not fed or not srt.strip():
+        return 0
+    # SRT and WebVTT share cue timing; only the header and the millisecond
+    # separator differ, so convert rather than re-deriving timings a second way.
+    Path(f"{out_base}.vtt").write_text(
+        "WEBVTT\n\n" + srt.replace(",", ".").strip() + "\n", encoding="utf-8")
+    return fed
+
+
+def assemble_video(slide_groups: list[list[Path]], audios: list[Path],
+                   out_path: Path, pause: float = 3.0, end_hold: float = 6.0,
+                   timings: list[list[dict] | None] | None = None,
+                   bullets_by_scene: list[list[str] | None] | None = None,
+                   rules: tuple | None = None) -> None:
+    from moviepy import (
+        AudioClip,
+        AudioFileClip,
+        CompositeVideoClip,
+        ImageClip,
+        concatenate_audioclips,
+    )
+    from moviepy.video.fx import CrossFadeIn
+
+    W, H = 1280, 720
+
+    img_clips, segs = [], []
+    offset = 0.0
+    last_slide: Path | None = None
+    for i, (variants, audio) in enumerate(zip(slide_groups, audios, strict=True)):
+        if variants:
+            last_slide = variants[-1]
+        a = AudioFileClip(str(audio))
+        scene_dur = max(a.duration, 0.1)
+        if len(variants) == 1:
+            parts = [scene_dur]
+        else:
+            scene_timings = timings[i] if timings and i < len(timings) else None
+            scene_bullets = (bullets_by_scene[i]
+                             if bullets_by_scene and i < len(bullets_by_scene)
+                             else None)
+            parts = _variant_durations(scene_dur, len(variants),
+                                      scene_bullets, scene_timings, rules)
+        for j, (vp, d) in enumerate(zip(variants, parts, strict=True)):
+            if j == len(variants) - 1 and i < len(slide_groups) - 1:
+                d += pause  # hold the last variant through the silence gap
+            clip = ImageClip(str(vp)).with_duration(d).with_start(offset)
+            clip = clip.with_effects([CrossFadeIn(0.6)])
+            img_clips.append(clip)
+            offset += d
+
+        segs.append(a)
+        if i < len(slide_groups) - 1:
+            segs.append(AudioClip(lambda _t: 0.0, duration=pause, fps=44100))
+
+    if end_hold > 0 and last_slide is not None:
+        hold = ImageClip(str(last_slide)).with_duration(end_hold).with_start(offset)
+        hold = hold.with_effects([CrossFadeIn(0.6)])
+        img_clips.append(hold)
+        offset += end_hold
+        segs.append(AudioClip(lambda _t: 0.0, duration=end_hold, fps=44100))
+
+    full_audio = concatenate_audioclips(segs)
+    video = CompositeVideoClip(img_clips, size=(W, H)).with_audio(full_audio)
+    print(f"  Rendering {offset:.1f}s of video @ 720p/24fps ...")
+    # Static dark slides are trivially compressible, so ABR ('-b:v') and CRF both
+    # collapse to ~10-60 kbps and trip the studio QA bitrate floor. Enforce a
+    # CBR-ish stream with 'nal-hrd=cbr' (equal min/max/buf) so the file stays
+    # portable and above the gate threshold.
+    video.write_videofile(str(out_path), fps=24,
+                          ffmpeg_params=["-g", "48", "-b:v", "700k",
+                                         "-minrate", "700k", "-maxrate", "700k",
+                                         "-bufsize", "700k",
+                                         "-x264-params", "nal-hrd=cbr"],
+                          logger="bar")
+    print(f"  Video written: {out_path} ({offset:.1f}s)")
+def _profile_rules(script: dict) -> tuple | None:
+    """Pronunciation rules of the profile the script was built with.
+
+    Reveal matching has to expand bullets the same way the TTS text was expanded,
+    so the rules are resolved from the script's own recorded profile. Recording
+    the profile name in the artifact (rather than re-deriving it from ambient
+    config) is what makes the two sides provably the same expansion.
+    """
+    from .voice import _make_voice
+
+    name = script.get("voice_profile")
+    if not name:
+        return None
+    try:
+        return tuple(_make_voice(str(name)).pronunciation_rules)
+    except SystemExit:
+        print(f"  [sync] voice profile {name!r} is not registered; reveal "
+              f"timings fall back to an even split")
+        return None
+
+
+def _render_media(plan: dict, out_base: Path, script: dict, voice: str | None,
+                  skip_video: bool, pause: float, end_hold: float = 6.0) -> None:
+    """Deterministic media render from an existing lesson plan (no LLM).
+
+    ``voice`` is the edge-tts engine voice override (None -> profile/env).
+    """
+    work = Path(tempfile.mkdtemp(prefix="tutor_studio_"))
+    print("  [2/5] Rendering slides ...")
+    slides = render_scenes(plan, work)
+    print("  [3/5] Generating voiceover (TTS) ...")
+    audios, timings = synth_scenes(script, work, voice, pause=pause,
+                                   end_hold=end_hold)
+    bullets_by_scene = [[str(b) for b in (sc.get("bullets") or [])]
+                        for sc in plan.get("scenes", [])]
+    word_timings = {"schema_version": 1,
+                    "ticks_per_second": _TICKS_PER_SECOND,
+                    "provider": script.get("provider", "edge-tts"),
+                    "clips": [{"index": int(clip.get("index", i)),
+                               "words": words}
+                              for i, (clip, words) in enumerate(
+                                  zip(script.get("clips", []), timings,
+                                      strict=False))]}
+    Path(f"{out_base}.word_timings.json").write_text(
+        json.dumps(word_timings, indent=2, ensure_ascii=False), encoding="utf-8")
+    spoken_words = sum(len(entry["words"]) for entry in word_timings["clips"])
+    print(f"  word sync  : {spoken_words} word timings captured "
+          f"-> {out_base}.word_timings.json")
+    # Only the rendered video carries the title card; with --skip-video there is
+    # no lead-in and clip 1 genuinely starts at 0.
+    vtt_cues = _write_webvtt(out_base, script, timings, audios, pause=pause,
+                             lead_in=0.0 if skip_video else TITLE_HOLD + pause)
+    if vtt_cues:
+        print(f"  captions   : {vtt_cues} cues -> {out_base}.vtt")
+    audio_dir = Path(f"{out_base}_audio")
+    audio_dir.mkdir(exist_ok=True)
+    for a in audios:
+        shutil.copy(a, audio_dir / a.name)
+    print(f"  [3/5] audio clips kept in {audio_dir}")
+    if not skip_video:
+        # Cover card prepended so the video mirrors the deck's title slide
+        # (same header chrome); held silently, then crossfades into scene 1.
+        title_png = work / "title.png"
+        _render_title_card(plan, title_png)
+        # Real PCM silence (NOT a moviepy AudioClip): the all-zeros clip moviepy
+        # writes probes as 0.0s duration, so the subsequent AudioFileClip reader
+        # collapses its buffer to 1 frame and Popen(bufsize=1) trips the CPython
+        # "line buffering in binary mode" RuntimeWarning. A proper WAV carries
+        # samples, keeps duration == TITLE_HOLD, and the warning never fires.
+        import wave
+        title_wav = work / "title.wav"
+        sr = 44100
+        with wave.open(str(title_wav), "wb") as f:
+            f.setnchannels(1)
+            f.setsampwidth(2)
+            f.setframerate(sr)
+            f.writeframes(b"\x00\x00" * int(sr * TITLE_HOLD))
+        slides = [[title_png], *slides]
+        audios = [title_wav, *audios]
+    print("  [4/5] Building PPTX deck ...")
+    tp = time.monotonic()
+    build_pptx(plan, Path(f"{out_base}.pptx"))
+    print(f"  [4/5] done in {time.monotonic() - tp:.0f}s")
+    if not skip_video:
+        print("  [5/5] Rendering video (this can take a while) ...")
+        # The cover card is not a narrated scene, so it gets no word timings.
+        assemble_video(slides, audios, Path(f"{out_base}.mp4"),
+                       pause=pause, end_hold=end_hold,
+                       timings=[None, *timings],
+                       bullets_by_scene=[None, *bullets_by_scene],
+                       rules=_profile_rules(script))
+
+
+    # V5 / AC#26: the egress chokepoint, at the END of the render.
+    #
+    # `_render_media` is DEFINED HERE and called from TWO places in `cli.main` --
+    # the `build` branch and the `render` branch. Placing the control inside this
+    # function rather than at either call site is what makes it a chokepoint rather
+    # than one more thing a second branch can forget. Measured: a first version
+    # created `writer.py`, called it from nowhere, and the test that asserts the
+    # routing is what caught it.
+    #
+    # It runs LAST, after the media exists: a refusal that happened first would be a
+    # refusal of work never attempted. It raises `FixtureRefusal` (exit 4), not 2,
+    # which belongs to argparse -- see LLD 12.1.
+    write_media(plan, out_base, _VENDOR_REF)

@@ -361,7 +361,7 @@ def test_vendored_and_original_modules_are_segregated() -> None:
     we wrote are indistinguishable from the three we copied.
     """
     package = Path(__file__).resolve().parents[1] / "src/doc_to_video_channel"
-    vendored = {p.name for p in (package / "studio").glob("*.py")} - {"__init__.py"}
+    on_disk_in_studio = {p.name for p in (package / "studio").glob("*.py")} - {"__init__.py"}
     originals = {p.name for p in package.glob("*.py")} - {"__init__.py"}
 
     # DERIVED from the manifest, not hardcoded. The first version asserted
@@ -374,8 +374,22 @@ def test_vendored_and_original_modules_are_segregated() -> None:
         for e in manifest["modules"]
         if e["decision"] == "copy" and (package / "studio" / Path(e["path"]).name).is_file()
     }
-    assert vendored == landed, (
-        f"studio/ holds {sorted(vendored)} but the manifest says {sorted(landed)} are landed"
+    # `studio/` also holds files we WROTE, which is the point of the directory: the
+    # vendored and the original are told apart by the manifest, not by location.
+    # `writer.py` is the first -- AC#26's chokepoint, called by the renderers, so it
+    # has to sit beside them.
+    # `landed` comes from the manifest, which records what came from VENDOR_REF, so
+    # it correctly has no row for a file WE wrote. `writer.py` is declared ours here
+    # rather than added to the manifest, because putting a non-vendored file in a
+    # manifest of vendored files would be a worse lie.
+    ours_in_studio = on_disk_in_studio - landed
+    assert ours_in_studio == {"writer.py"}, (
+        f"unexpected non-vendored module in studio/: {sorted(ours_in_studio)}. A new "
+        f"one must be declared as ours, not left to look like part of the copy."
+    )
+    assert on_disk_in_studio - ours_in_studio == landed, (
+        f"studio/ holds {sorted(on_disk_in_studio)}; minus the {sorted(ours_in_studio)} "
+        f"we wrote, the manifest says {sorted(landed)} are landed"
     )
     # The originals are DERIVED too: a module beside the package is ours iff the
     # manifest does not list it. Hardcoding the set broke the moment V4 added
@@ -387,4 +401,6 @@ def test_vendored_and_original_modules_are_segregated() -> None:
         f"{sorted(originals & known)} sit beside the package but the manifest calls "
         f"them vendored -- a file cannot be both"
     )
-    assert not (vendored & originals), "a filename is in both trees"
+    assert not ((on_disk_in_studio - ours_in_studio) & originals), (
+        "a filename is in both trees"
+    )

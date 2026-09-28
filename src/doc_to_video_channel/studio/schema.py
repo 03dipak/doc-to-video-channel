@@ -8,7 +8,7 @@ English-only slide fields) before rendering or audio synthesis.
 from __future__ import annotations
 
 import re
-from typing import Literal
+from typing import ClassVar, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
@@ -103,6 +103,13 @@ class SlideScene(BaseModel):
     # every one of them is one of the five members, but "absent" is still a state
     # the baseline allowed and this must not remove.
     section: SectionKind | None = None
+
+    #: A44: the locale of the voice that will speak this scene's narration.
+    #: Class-level, not per-scene, because the voice is chosen once per build --
+    #: a plan where two scenes disagree about their voice is a plan whose audio
+    #: cannot be rendered, and that should be a schema error rather than a
+    #: surprise at TTS time.
+    _narration_lang: ClassVar[str] = "en-IN"
     topic: str = ""
     source_refs: list[str] = Field(default_factory=list)
 
@@ -144,6 +151,43 @@ class SlideScene(BaseModel):
         # None, NOT to a default member: inventing a section is the repair this
         # project forbids.
         return None if v is None or (isinstance(v, str) and not v.strip()) else v
+
+    @field_validator("narration", mode="before")
+    @classmethod
+    def reject_unpronounceable_narration(cls, v: object) -> object:
+        """A44, landed at V5 because it needs the voice registry.
+
+        `narration` sits outside `_FIELD_NAMES`, so the script check that guards
+        every ON-SCREEN field never looked at it. Measured before this fix:
+        `SlideScene(narration="यह अनुभाग")` validated clean while the same script
+        in `title` or `bullets` was refused.
+
+        The rule is **voice-relative**, and the measurement that decided it is that
+        the reference's DEFAULT voice is Hindi. `_VOICES` holds `mhe-mix` at
+        `hi-IN-SwaraNeural` and `english` at `en-IN-NeerjaNeural`, and
+        `NarrationVoice` has no `locale` field at all -- the only signal is the
+        `tts_voice` prefix. So an absolute rule is wrong in both directions:
+        refusing non-Latin narration would break the default, which CAN pronounce
+        Devanagari, and allowing it would let the English voice narrate gibberish.
+
+        `narration_lang` names the voice's locale, defaulting to the only locale
+        this build can speak. It is a field rather than a constant so a caller
+        declaring a Hindi build is making a claim the validator can check, not
+        asking the check to be switched off.
+        """
+        if not isinstance(v, str) or not v.strip():
+            return v
+        if str(getattr(cls, "_narration_lang", "en-IN")).startswith("hi"):
+            return v
+        if _has_non_latin_script(v):
+            raise ValueError(
+                f"narration contains a non-Latin script and the selected voice is "
+                f"{cls._narration_lang}, which cannot pronounce it. Pass "
+                f"narration_lang='hi-IN' for a Hindi build. The on-screen fields "
+                f"are checked unconditionally because a viewer READS them; this one "
+                f"is checked against the voice because a viewer HEARS it."
+            )
+        return v
 
     @field_validator(*_FIELD_NAMES)
     @classmethod

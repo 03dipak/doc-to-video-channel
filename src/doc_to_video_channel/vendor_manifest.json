@@ -81,7 +81,9 @@
       "decision": "copy",
       "step": "V5",
       "reason": "the build path; 5 subcommands",
-      "channel_edits": [],
+      "channel_edits": [
+        "inherited no-untyped-def annotated (4 signatures)"
+      ],
       "exists": true,
       "lines": 875,
       "sha256": "832a2f114ea65d870a35608f328f2698589c2b0f16d399dcdc301f3b4321b822"
@@ -121,7 +123,9 @@
       "decision": "copy",
       "step": "V5",
       "reason": "renderer 2 of 2; injects the same Key Takeaways card",
-      "channel_edits": [],
+      "channel_edits": [
+        "inherited no-untyped-def annotated (9 signatures); geometry params typed float, which is what python-pptx takes"
+      ],
       "exists": true,
       "lines": 1022,
       "sha256": "4576bbee27c863573e973bc85ffc5fa9ba7c680d0f3aeffd227d101130a13d45"
@@ -131,7 +135,9 @@
       "decision": "copy",
       "step": "V5",
       "reason": "renderer 1 of 2; injects Key Takeaways",
-      "channel_edits": [],
+      "channel_edits": [
+        "inherited no-untyped-def annotated (4 signatures)"
+      ],
       "exists": true,
       "lines": 758,
       "sha256": "bacd3f20288f8cff4dd33c3c9a30ee72e89ad849b86df9a0baca8d8f7b853b07"
@@ -161,7 +167,10 @@
       "decision": "copy",
       "step": "V5",
       "reason": "renderer assembly; TTS + moviepy",
-      "channel_edits": [],
+      "channel_edits": [
+        "inherited no-untyped-def annotated",
+        "V5/AC#26: write_media called at the END of _render_media, which is the only definition and is reached by BOTH cli.main call sites"
+      ],
       "exists": true,
       "lines": 855,
       "sha256": "2c7812a4bf4057a3363c048487f29fb5cf9f448998a4513de42dbbe2ea03a4b8"

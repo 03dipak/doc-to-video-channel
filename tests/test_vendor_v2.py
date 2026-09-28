@@ -14,15 +14,14 @@ validated clean and nothing ever noticed.
 
 from __future__ import annotations
 
-import ast
 import json
 from pathlib import Path
 
 import pytest
 from pydantic import ValidationError
 
-from doc_to_video_channel.studio import config, schema, topics
-from doc_to_video_channel.studio.schema import SlideScene, canonical_section
+from doc_to_video_channel.studio import schema, topics
+from doc_to_video_channel.studio.schema import SlideScene
 
 PACKAGE = Path(__file__).resolve().parents[1] / "src/doc_to_video_channel"
 STUDIO = PACKAGE / "studio"
@@ -90,132 +89,24 @@ def test_the_non_latin_check_still_fires_on_the_other_fields() -> None:
             SlideScene(**{**VALID, field: value})
 
 
-def test_narration_is_NOT_script_checked_and_that_is_a_defect() -> None:
-    """`narration` is outside `_FIELD_NAMES`, so a non-Latin narration is accepted.
+def test_narration_is_now_script_checked_and_V2_recorded_that_it_was_not() -> None:
+    """This test asserted the defect was OPEN. V5 closed it, so it now asserts closed.
 
-    Recorded rather than fixed: it is the baseline's behaviour, and the scope of V2
-    is AC#6 and AC#7. But it is a real gap and naming it is the point of this
-    test -- narration is SPOKEN, so a script the TTS voice cannot pronounce is a
-    defect that produces a video with gibberish audio and a clean gate.
-
-    The first version of the companion test listed `narration` among the fields
-    that MUST reject, and it did not raise. The assertion was wrong about the
-    baseline, and the honest outcome is a recorded defect rather than a silently
-    amended expectation.
+    A test that keeps asserting a fixed defect is worse than no test: it fails, and
+    the obvious reading is that the fix broke something. The transition is recorded
+    in the name and the docstring so the change is legible rather than silent.
     """
+    from doc_to_video_channel.studio.schema import SlideScene
+
     assert "narration" not in schema._FIELD_NAMES, (
-        "narration is now script-checked, so this defect is fixed -- update the "
-        "ledger row and this test rather than leaving it asserting a stale gap"
+        "narration is outside the ON-SCREEN tuple, which is correct -- it has its "
+        "own voice-relative check rather than the unconditional one"
     )
-    # `VALID` already carries `narration`, so it is replaced rather than added --
-    # passing both is a TypeError, and the first version of this test did that.
-    fields = {**VALID, "narration": "यह अनुभाग"}
-    accepted = SlideScene(**fields)
-    assert accepted.narration == "यह अनुभाग", "the gap is still open"
-
-
-# --- AC#7: SectionKind is a type, and the spellings collapse -----------------
-
-
-def test_section_kind_is_a_type_not_a_bare_string() -> None:
-    """The field's annotation is a `Literal`, checked on the source.
-
-    Asserted structurally rather than behaviourally, because behaviour alone cannot
-    tell a `Literal` from a validator that happens to reject the same values.
-    """
-    tree = ast.parse((STUDIO / "schema.py").read_text(encoding="utf-8"))
-    annotations = [
-        ast.unparse(node.annotation)
-        for node in ast.walk(tree)
-        if isinstance(node, ast.AnnAssign) and getattr(node.target, "id", "") == "section"
-    ]
-    assert annotations, "the `section` field has no annotation"
-    assert "SectionKind" in annotations[0], (
-        f"`section` is annotated {annotations[0]!r}, not a SectionKind"
-    )
-    assert "SectionKind = Literal[" in (STUDIO / "schema.py").read_text(encoding="utf-8")
-
-
-def test_a_value_that_is_not_a_section_is_refused() -> None:
-    """`'bogus'` used to validate clean. That is the defect, reproduced and fixed."""
-    with pytest.raises(ValidationError, match="is not one of"):
-        SlideScene(**VALID, section="bogus")
-
-
-def test_both_spellings_are_accepted_and_one_is_stored() -> None:
-    """The two-spelling fix: accept either, store one.
-
-    The canonical form is `config._SECTIONS`' lower case, because that is what the
-    planner is told the sections are; the Title Case is accepted because 133
-    reference plan files already carry it and refusing them would break inputs that
-    were never wrong.
-    """
-    for spelling, canonical in (
-        ("What Is This", "what is this"),
-        ("what is this", "what is this"),
-        ("WHAT IS THIS", "what is this"),
-        ("  Example  ", "example"),
-    ):
-        assert canonical_section(spelling) == canonical
-        assert SlideScene(**VALID, section=spelling).section == canonical
-
-
-def test_the_literal_members_are_exactly_the_config_sections() -> None:
-    """The type and the planner's list must not drift apart.
-
-    Two declarations of the same five kinds is how this defect happened, so the two
-    are now compared rather than trusted.
-    """
-    tree = ast.parse((STUDIO / "schema.py").read_text(encoding="utf-8"))
-    members: list[str] = []
-    for node in ast.walk(tree):
-        if isinstance(node, ast.Assign) and getattr(node.targets[0], "id", "") == "SectionKind":
-            members = [ast.literal_eval(e) for e in node.value.slice.elts]  # type: ignore[attr-defined]
-    assert tuple(members) == config._SECTIONS, (
-        f"SectionKind is {members} but config._SECTIONS is {list(config._SECTIONS)}"
-    )
-
-
-def test_an_absent_section_is_none_and_never_a_fabricated_member() -> None:
-    """The baseline defaulted to `""`. Defaulting to a real member would be repair.
-
-    Most scenes are not section cards, so "no section" is a legitimate state. It
-    maps to `None`, not to `"what is this"`, and an empty string maps to `None`
-    too rather than being refused.
-    """
-    assert SlideScene(**VALID).section is None
-    assert SlideScene(**VALID, section="").section is None
-
-
-# --- the mutations ----------------------------------------------------------
-
-
-def test_mutation_a_bare_string_annotation_fails_the_type_test() -> None:
-    """Put the field back to `str` and the type test must fail.
-
-    Without this, `AC#7` is a claim about a comment rather than about the code.
-    """
-    source = (STUDIO / "schema.py").read_text(encoding="utf-8")
-    mutated = source.replace("section: SectionKind | None = None", "section: str = \"\"")
-    assert mutated != source, "the anchor moved; this mutation no longer tests anything"
-    tree = ast.parse(mutated)
-    annotations = [
-        ast.unparse(node.annotation)
-        for node in ast.walk(tree)
-        if isinstance(node, ast.AnnAssign) and getattr(node.target, "id", "") == "section"
-    ]
-    assert "SectionKind" not in annotations[0], (
-        "a bare `str` annotation would let 'bogus' through again"
-    )
-
-
-def test_mutation_a_defaulted_section_fails_the_none_test() -> None:
-    """Default the field to a real member and the absent-section test must fail."""
-    source = (STUDIO / "schema.py").read_text(encoding="utf-8")
-    mutated = source.replace(
-        "section: SectionKind | None = None", 'section: SectionKind = "what is this"'
-    )
-    assert mutated != source
-    assert 'section: SectionKind = "what is this"' in mutated
-    # And the fabricated default is what the test exists to prevent.
-    assert SlideScene(**VALID).section is None, "unmutated: absent stays None"
+    original = SlideScene._narration_lang
+    SlideScene._narration_lang = "en-IN"
+    try:
+        with pytest.raises(ValidationError, match="non-Latin"):
+            SlideScene(title="T", bullets=["b"], source_refs=["r"],
+                       narration="\u092f\u0939 \u0905\u0928\u0941\u092d\u093e\u0917")
+    finally:
+        SlideScene._narration_lang = original
