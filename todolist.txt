@@ -9,12 +9,20 @@ RESUME HERE
 =============================================================================
 NEXT SESSION (OWNER'S REQUEST): build the command for `source/uv.md`.
 
+  THE USE CASE IS CONFIRMED (owner, 2026-09-28): the channel is the SAME SHAPE as
+  the engine. The engine's `build modules/08_concepts_mod03_gates.md` takes a doc
+  with step-by-step instructions and makes a video; the channel takes the SAME kind
+  of doc -- `sources/uv-getting-started.md` -- and turns it into a storyboard,
+  which `render` turns into a live practical session video. doc -> storyboard ->
+  video. The "source/uv.md" phrasing was my own confusion; the canonical source is
+  a markdown file with step instructions (like the engine's module files), and the
+  seam from it to a storyboard is the authoring step yet to run.
+
   The storyboard path is proven: `render` projects and refuses. What has NOT been
-  tried is a storyboard whose source document is a real FILE at `source/uv.md`.
-  Today's source is `sources/uv-getting-started.md`; the citations and the 7
-  unanchored scenes block a shippable lesson, and every gap is authoring, not code.
-  Verify whether `source/uv.md` should be the new canonical source, then author the
-  citations/takeaways/reworded-repeats against it and render default (no override).
+  tried is a storyboard whose source document is a real FILE next to the engine's
+  sibling modules. The 7 unanchored scenes block a shippable lesson, and every gap
+  is authoring (citations/takeaways/reworded repeats), not code. Author the
+  citations against the source document, then render default (no override).
 
   WHERE IT STANDS WHEN YOU RETURN -- re-measure, don't trust the numbers cold:
   - The gate is FOUR commands (AGENTS.md "Facts that will bite you"):
