@@ -231,7 +231,33 @@ _MHE_MARKERS = {
     "sodya", "unka", "unke", "woh", "yeh",
 }
 _NARR_MIN_TOKENS = 12
-_SECTIONS = ("what is this", "why do we need it", "how does it work", "example", "takeaway")
+_SECTIONS: tuple[str, ...] = (
+    "what is this", "why do we need it", "how does it work", "example", "takeaway",
+)
+
+# CHANNEL EDIT (D1/V7): the channel's five chapter titles, added to the vocabulary
+# so `schema.SlideScene` accepts them.
+#
+# WHY THIS IS SAFE, MEASURED: the schema's own rejection message says "a section the
+# planner never named is a section the renderer will not have a layout for", and for
+# the RENDERERS that is not true. Both draw `section` as a gold uppercase label and
+# neither branches on its value -- `slides.render_slide` does
+# `d.text(..., scene.get("section", "").upper(), ...)` and `pptx._ppt_header` does
+# `_est_text_height(section.upper(), ...)`. The enum is a *planner-side* vocabulary:
+# `plan._infer_section` classifies free text into it, and the channel's storyboard
+# supplies the section explicitly, so that inference is not on the path.
+#
+# The alternative was to mislabel five real chapters as five unrelated section names
+# from the reference's taxonomy -- "lock and sync" is not "how does it work" -- and a
+# mislabelled chapter teaches the learner the wrong shape of the lesson.
+_CHANNEL_SECTIONS = (
+    "install and verify",
+    "first project",
+    "add a dependency",
+    "lock and sync",
+    "run and borrow",
+)
+_SECTIONS = _SECTIONS + _CHANNEL_SECTIONS
 _ENUM_HINTS = (
     ("what is this", ("schema", "contract", "definition", "identifier",
                       "metadata", "registry", "defines")),

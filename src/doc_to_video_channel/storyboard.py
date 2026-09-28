@@ -132,6 +132,24 @@ class Step:
 
 
 @dataclass(frozen=True, slots=True)
+class Citation:
+    """One sourced claim, with the quote it was sourced from.
+
+    `verbatim` is the load-bearing field. A citation that carries a URL but no quote
+    cannot be matched against a step, so it cannot anchor a scene, and a citation
+    that cannot anchor anything is a decoration. Matching is on the quote because
+    that is checkable: either the sentence a learner reads contains the quoted text
+    or it does not.
+    """
+
+    claim: str
+    url: str
+    verbatim: str
+    page_date: str = ""
+    retrieved_on: str = ""
+
+
+@dataclass(frozen=True, slots=True)
 class Chapter:
     """A chapter that works standalone, because each one states its start state."""
 
@@ -156,6 +174,15 @@ class Storyboard:
     authored_by: str
     authored_on: str
     environment_of_record: str
+    #: Every citation, with its verbatim quote. **This was dropped at load until the
+    #: V7 seam needed it.** `load()` read `provenance` and kept four of its five
+    #: keys; `citations` was read and thrown away, so the one block that makes the
+    #: lesson traceable to a document never left the JSON file. Measured: the uv
+    #: storyboard ships 3 citations, and the projection anchored **0 of 8 scenes**
+    #: because the list was empty. The traceability anchor has to survive the load or
+    #: every downstream "is this claim sourced?" question answers itself with an
+    #: empty list and reads as a pass.
+    citations: tuple[Citation, ...] = field(default_factory=tuple)
     chapters: tuple[Chapter, ...] = field(default_factory=tuple)
 
     def steps(self) -> Iterator[Step]:
@@ -313,6 +340,35 @@ def load(path: Path) -> tuple[Storyboard, list[Gap]]:
             )
         )
 
+    citations: list[Citation] = []
+    for index, value in enumerate(prov.get("citations") or []):
+        item = _as_dict(value)
+        claim = str(item.get("claim", "")).strip()
+        quote = str(item.get("verbatim", "")).strip()
+        where = f"provenance/citations[{index}]"
+        if not claim:
+            gaps.append(Gap("citation_without_claim", where,
+                            "a citation with no claim cannot be checked against "
+                            "anything", blocking=True))
+        if not quote:
+            gaps.append(Gap("citation_without_verbatim", where,
+                            "a citation with no verbatim quote cannot anchor a scene: "
+                            "matching is on the quoted text, so without it the "
+                            "citation supports nothing and cannot be verified",
+                            blocking=True))
+        citations.append(Citation(
+            claim=claim,
+            url=str(item.get("url", "")),
+            verbatim=quote,
+            page_date=str(item.get("page_date", "")),
+            retrieved_on=str(item.get("retrieved_on", "")),
+        ))
+    if not citations:
+        gaps.append(Gap("no_citations", "provenance",
+                        "a storyboard with no citations has no source-traceable claim "
+                        "in it, and the V7 projection will anchor nothing",
+                        blocking=True))
+
     board = Storyboard(
         id=str(raw.get("id", path.stem)),
         title=str(raw.get("title", "")),
@@ -320,6 +376,7 @@ def load(path: Path) -> tuple[Storyboard, list[Gap]]:
         authored_by=str(prov.get("authored_by", "")),
         authored_on=str(prov.get("authored_on", "")),
         environment_of_record=str(env.get("uv", "")),
+        citations=tuple(citations),
         chapters=tuple(chapters),
     )
     return board, gaps

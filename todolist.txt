@@ -431,6 +431,80 @@ COVERAGE, AND WHY 18% IS NOT A REGRESSION
 
 
 =============================================================================
+V7 -- THE SEAM EXISTS AND THE PLAN IS VALID. THE LESSON IS NOT SHIPPABLE YET.
+=============================================================================
+  `src/doc_to_video_channel/projector.py`, OURS. storyboard -> LessonPlan. This is
+  the piece that was missing: the storyboard could be REPLAYED by the harness and
+  could never be RENDERED, because the renderer takes a plan and the channel's
+  authored artefact is a storyboard.
+
+  MEASURED ON THE REAL STORYBOARD:
+    15 steps -> 8 scenes (budget 8, against AUTO_TRIM_MAX 12)
+    schema.LessonPlan(**plan) VALID
+    guard_plan 27 problems -> 9
+
+  NOTHING IS INVENTED. Every bullet is a checkpoint / state_change / common_failure
+  VERBATIM, the code snippet is the command verbatim, the narration is purpose +
+  checkpoint, the opening is chapter one's start_state, and source_refs are matched
+  by testing whether a citation's VERBATIM QUOTE appears in the step's own text.
+
+  *** THE HEADLINE IS A REFUSAL: 1 OF 8 SCENES IS ANCHORED, 7 ARE NOT. ***
+  The storyboard ships 3 citations, all covering installation, while the session
+  teaches 15 steps across project creation, dependencies, lock/sync and running
+  code. So the seam reports 7 unanchored scenes and `Projection.shippable` is
+  False. That is the channel thesis working: a claim that cannot be traced to a
+  citation is not rendered rather than given a reference nobody checked. CLOSING
+  THIS NEEDS CITATIONS FOR THE STEPS THE CURRENT THREE DO NOT COVER -- authoring,
+  not code.
+
+  THE CITATIONS WERE BEING DROPPED AT LOAD. `storyboard.load()` read `provenance`,
+  kept four of its five keys, and discarded `citations` -- so the one block that
+  makes the lesson traceable never left the JSON, and the first projection anchored
+  0 of 8 while reporting a CONTENT problem rather than an empty lookup. A trace
+  check that fails closed for the wrong reason is worse than one that fails open:
+  it sends you to edit content that is fine. Now loaded, with an empty list and a
+  quote-less citation both BLOCKING gaps.
+
+  THE SECTION VOCABULARY WAS WRITTEN OUT THREE TIMES -- `config._SECTIONS`,
+  `schema.SectionKind`, `schema._SECTION_SPELLINGS` -- so adding the channel's five
+  chapters to config alone changed nothing and the schema still refused all eight
+  scenes. Now DERIVED from config, which is the only list. Measured that this is
+  safe: both renderers draw `section` as a gold uppercase label and NEITHER branches
+  on its value (`slides` does `d.text(..., section.upper(), ...)`; `pptx` does
+  `_est_text_height(section.upper(), ...)`). The schema's own rejection text -- "a
+  section the renderer will not have a layout for" -- is not true of the renderers.
+  A non-member is still refused; `canonical_section('bogus')` still raises.
+
+  ALSO: `schema.source_refs` is `list[str]`, not objects, so the locator is the ref
+  and the full citation rides beside it under `_citations`. And `bullets` is
+  `max_length=4` while three steps contribute up to nine fields, so selection is by
+  stated decision-relevance order and the DROPPED COUNT is reported as a gap --
+  6 of 8 scenes drop something, which is a fact about the storyboard, not a cap
+  pretending to be a design.
+
+  TWO FIXES THAT WERE MINE, MEASURED:
+  - The step join used "First, " / " Then, " to be contentless. Of the 7 narration
+    repeats guard_plan reported, **2 were caused by those two strings** -- the join
+    manufactured the repetition the gate looks for. Now a full stop, which adds no
+    token and so cannot form a trigram. 7 repeats -> 5.
+  - The opening was chapter one's `goal`, and every chapter's goal is the state the
+    chapter ENDS in, so the lesson opened by announcing its own outcome. It is now
+    chapter one's `start_state`: where the learner is.
+
+  REMAINING 9 guard_plan PROBLEMS, and NONE is a code defect:
+    7x missing source_refs ..... the 7 unanchored scenes, i.e. the citation gap
+    repeating narration phrase . 5 repeats, all from the storyboard's OWN authored
+                                 checkpoint/state_change text ("is the step", "the
+                                 dependency is", "was not recorded"). Authoring.
+    opening drifted ............ `_opening_is_on_topic` is token-overlap against the
+                                 chapter labels, and the start state says "uv is NOT
+                                 installed" while the label is "install and verify".
+                                 Rewording the opening to satisfy the check would be
+                                 writing content, so it is left to fail visibly.
+  So the render is blocked on AUTHORING, not on the seam, and the seam says so.
+
+
+=============================================================================
 D1 -- DONE. THE CAPTION STAGE, AND INSTRUMENT 1 IS NOT THE GATE §12.2 PROMISED
 =============================================================================
   `studio/captions.py`, OURS, 184 stmts at 90%. Wired into `_render_media` BETWEEN

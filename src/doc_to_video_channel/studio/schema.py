@@ -12,6 +12,7 @@ from typing import ClassVar, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
+from .config import _SECTIONS
 from .text import _has_non_latin_script
 
 _FIELD_NAMES = ("title", "bullets", "steps", "flow", "visual_diagram",
@@ -40,25 +41,36 @@ SectionKind = Literal[
     "how does it work",
     "example",
     "takeaway",
+    # The channel's five chapters, added at V7. `Literal` is a static annotation, so
+    # the runtime list below is what actually admits or refuses a value -- and that
+    # list is derived from `config._SECTIONS` precisely so these two cannot drift.
+    "install and verify",
+    "first project",
+    "add a dependency",
+    "lock and sync",
+    "run and borrow",
 ]
 
-#: The Title-Case spellings the reference plans carry, mapped to canonical.
-_SECTION_SPELLINGS: dict[str, str] = {
-    "what is this": "what is this",
-    "why do we need it": "why do we need it",
-    "how does it work": "how does it work",
-    "example": "example",
-    "takeaway": "takeaway",
-}
+#: Canonical spelling -> itself, for every member of `config._SECTIONS`.
+#:
+#: DERIVED, and the derivation is the point. The vocabulary was written out three
+#: times -- here, in `_SECTION_SPELLINGS`, and in `config._SECTIONS` -- so adding the
+#: channel's five chapters to `config` alone changed nothing: `canonical_section`
+#: kept refusing them, and the schema's error message still listed five members. A
+#: vocabulary that has to be edited in three places is a vocabulary that will be
+#: half-edited, which is the same "two spellings of one concept" defect AC#7 names,
+#: one level up. `config._SECTIONS` is now the only list.
+_SECTION_SPELLINGS: dict[str, str] = {name: name for name in _SECTIONS}
+
+
+def _title_case(name: str) -> str:
+    return " ".join(word.capitalize() for word in name.split())
+
 
 #: What a caller wrote, when it is a member under SOME accepted spelling.
 _SECTION_LOOKUP: dict[str, str] = {
-    **{k: v for k, v in _SECTION_SPELLINGS.items()},
-    "What Is This": "what is this",
-    "Why Do We Need It": "why do we need it",
-    "How Does It Work": "how does it work",
-    "Example": "example",
-    "Takeaway": "takeaway",
+    **_SECTION_SPELLINGS,
+    **{_title_case(name): name for name in _SECTIONS},
 }
 
 
