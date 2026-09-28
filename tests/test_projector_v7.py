@@ -280,3 +280,151 @@ def test_a_chapter_with_no_section_mapping_is_reported() -> None:
     assert "unmapped_chapter" in {g.kind for g in result.gaps}
     assert result.plan["scenes"][0]["section"] == ""
     assert mapping  # the mapping is the thing under test, not its absence
+
+
+# --- the degenerate storyboards, which is where the remaining misses were ------
+#
+# 21 of the statements this package's own code leaves uncovered are the empty and
+# malformed paths, and a projection that has only ever seen a 15-step storyboard has
+# never been asked what happens with none. Each case below is a real way the input
+# can be wrong, and each asserts the specific behaviour rather than "it did not
+# crash".
+
+
+def _step(**over: Any) -> Any:
+    from doc_to_video_channel.storyboard import Step
+
+    base = {
+        "id": "s1", "purpose": "Do a thing.", "precondition": "p", "command": "true",
+        "expected_output_pattern": "x", "checkpoint": "It worked.",
+        "state_change": "Nothing changed.", "common_failure": "It failed.",
+    }
+    base.update(over)
+    return Step(**base)  # type: ignore[arg-type]
+
+
+def _board(chapters: tuple[Any, ...], **over: Any) -> Any:
+    from doc_to_video_channel.storyboard import Storyboard
+
+    base = {
+        "id": "b", "title": "A lesson", "source_document": "s.md",
+        "authored_by": "a", "authored_on": "2026-09-28",
+        "environment_of_record": "uv 0.12.2",
+        "citations": (Citation("claim", "https://x/y", "Do a thing."),),
+    }
+    base.update(over)
+    return Storyboard(**base, chapters=chapters)  # type: ignore[arg-type]
+
+
+def test_an_empty_storyboard_projects_to_nothing_and_says_so() -> None:
+    from doc_to_video_channel.storyboard import Chapter
+
+    result = project(_board((Chapter(id="c", title="T", start_state="s", goal="g",
+                                     steps=()),)))
+    assert result.scenes == 0
+    assert result.plan["scenes"] == []
+    assert "empty" in {g.kind for g in result.gaps}
+    assert not result.shippable
+
+
+def test_a_chapter_with_no_steps_gets_no_scenes() -> None:
+    from doc_to_video_channel.storyboard import Chapter
+
+    empty = Chapter(id="c", title="T", start_state="s", goal="g", steps=())
+    result = project(_board((empty,)))
+    assert result.scenes == 0
+
+
+def test_a_step_with_no_command_is_reported_and_gets_no_snippet() -> None:
+    """A step with no command has nothing to show, and saying so beats rendering an
+    empty code box."""
+    from doc_to_video_channel.storyboard import Chapter
+
+    chapter = Chapter(id="c", title="T", start_state="s", goal="g",
+                      steps=(_step(command="", purpose="Explain only."),))
+    result = project(_board((chapter,)))
+    assert "no_command" in {g.kind for g in result.gaps}
+    assert result.plan["scenes"][0]["code_snippet"] == ""
+
+
+def test_a_step_with_no_purpose_falls_back_to_the_chapter_title() -> None:
+    from doc_to_video_channel.storyboard import Chapter
+
+    chapter = Chapter(id="c", title="The chapter name", start_state="s", goal="g",
+                      steps=(_step(purpose=""),))
+    result = project(_board((chapter,)))
+    assert result.plan["scenes"][0]["title"] == "The chapter name"
+    # and the guard's complaint about a title that restates its section is correct
+    assert result.plan["scenes"][0]["section"] == ""
+
+
+def test_a_topic_with_no_command_falls_back_to_the_purpose() -> None:
+    from doc_to_video_channel.storyboard import Chapter
+
+    chapter = Chapter(id="c", title="T", start_state="s", goal="g",
+                      steps=(_step(command="", purpose="Explain the shape of it"),))
+    result = project(_board((chapter,)))
+    assert result.plan["scenes"][0]["topic"] == "Explain the shape of"
+
+
+def test_no_start_state_anywhere_leaves_the_opening_empty() -> None:
+    from doc_to_video_channel.storyboard import Chapter
+
+    chapter = Chapter(id="c", title="T", start_state="", goal="g",
+                      steps=(_step(),))
+    result = project(_board((chapter,)))
+    assert result.plan["opening"] == ""
+
+
+def test_scene_budget_of_nothing_is_nothing() -> None:
+    assert scene_budget(0, []) == []
+    assert scene_budget(5, []) == []
+
+
+def test_a_chapter_with_no_citation_anchor_reports_the_whole_scene() -> None:
+    """Wrong input: a step whose text matches no quote. The scene is unanchored
+    rather than anchored to the chapter's nearest neighbour."""
+    from doc_to_video_channel.storyboard import Chapter
+
+    chapter = Chapter(id="c", title="T", start_state="s", goal="g",
+                      steps=(_step(purpose="Something else entirely."),))
+    result = project(_board((chapter,)))
+    assert result.unanchored == ["c/s1"]
+
+
+def test_split_of_nothing_is_nothing() -> None:
+    from doc_to_video_channel.projector import _split
+
+    assert _split((), 2) == []
+    assert _split((_step(),), 0) == []
+
+
+def test_a_second_command_in_a_scene_goes_in_the_context_not_the_snippet() -> None:
+    """The duplication fix, pinned: the snippet shows the first command ONCE and the
+    context names only what follows."""
+    from doc_to_video_channel.storyboard import Chapter
+
+    chapter = Chapter(
+        id="c", title="T", start_state="s", goal="g",
+        steps=(_step(command="first --flag", purpose="P one"),
+               _step(id="s2", command="second --flag", purpose="P two")),
+    )
+    # `target_scenes=1` is the point of the test: with the default budget a 2-step
+    # chapter gets 1 step per scene, so the two commands never share a scene and the
+    # context box is never reached. Asserting on the default budget would have
+    # "passed" against a code path that never runs.
+    result = project(_board((chapter,)), target_scenes=1)
+    scene = result.plan["scenes"][0]
+    assert scene["code_snippet"] == "first --flag"
+    assert "first --flag" not in scene["code_context"]
+    assert "second --flag" in scene["code_context"]
+
+
+def test_a_single_command_gets_no_context_box_at_all() -> None:
+    """Found by looking at a rendered frame: the context box repeated the snippet."""
+    from doc_to_video_channel.storyboard import Chapter
+
+    chapter = Chapter(id="c", title="T", start_state="s", goal="g",
+                      steps=(_step(command="only --flag"),))
+    result = project(_board((chapter,)), target_scenes=1)
+    assert result.plan["scenes"][0]["code_context"] == ""

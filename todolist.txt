@@ -431,6 +431,34 @@ COVERAGE, AND WHY 18% IS NOT A REGRESSION
 
 
 =============================================================================
+THE GATE IS FOUR COMMANDS. THE FOURTH WAS MISSING, AND IT BIT.
+=============================================================================
+  MEASURED: after wiring `render`, our own code fell 98% -> 87%, and NOTHING failed.
+  pyproject's `fail_under = 60` is the whole-tree backstop (measured 68%), and the
+  scoped 95 over our own code was written only in a COMMENT -- I had removed the
+  `include` from the report section two commits earlier to stop it hiding studio/,
+  and in doing so left the stricter floor with no command that ran it. A floor
+  written in prose is a comment.
+  So the gate is now four commands, and AGENTS.md says so:
+    ruff check src tests && mypy src && pytest -q &&
+    python -m coverage report --include="src/doc_to_video_channel/*.py" --fail-under=95
+  Verified with teeth: 60 lines of untested code in this package -> 88% -> exit 2.
+  Restored: ours 726 stmts 96%, whole tree 6,276 stmts 68%.
+
+  WHY TWO FLOORS NEED TWO COMMANDS: 95 is scoped to this package's own code and 60
+  covers the whole tree including 5,550 vendored statements. One `fail_under` in
+  pyproject can only be one number over one population, and the tool that scopes it
+  (`include`) also scopes the PRINTED report -- which is how studio/ went missing
+  from `pytest --cov --cov-report=term-missing` in the first place.
+
+  41 of the 70 uncovered statements were `_run_render`, ALL of it exercised and NONE
+  of it counted: the render tests ran through the console script in a subprocess, and
+  nothing a child process does reaches the parent's coverage database. The same
+  behaviour is now also checked in process, for the reason this file already gave for
+  `test_main_returns_the_same_code_in_process`. 98% -> 87% -> 96%.
+
+
+=============================================================================
 V7 -- THE SEAM EXISTS AND THE PLAN IS VALID. THE LESSON IS NOT SHIPPABLE YET.
 =============================================================================
   `src/doc_to_video_channel/projector.py`, OURS. storyboard -> LessonPlan. This is

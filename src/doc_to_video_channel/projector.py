@@ -326,9 +326,17 @@ def project(board: Storyboard, *, target_scenes: int = TARGET_SCENES) -> Project
     total_steps = sum(per_chapter)
     budget = scene_budget(total_steps, per_chapter, target=target_scenes)
     if not budget:
-        return Projection(plan={}, scenes=0, steps=0,
-                          gaps=[ProjectionGap("empty", board.id,
-                                              "the storyboard has no steps to project")])
+        # A plan with the SAME SHAPE as a real one, not `{}`. The first version
+        # returned an empty dict here, so `result.plan["scenes"]` raised KeyError on
+        # exactly the input a caller is most likely to be guarding against -- a
+        # storyboard with nothing in it. An empty result that cannot be read like an
+        # empty result is a crash wearing a result's clothes.
+        return Projection(
+            plan={"title": board.title, "opening": "", "scenes": [], "takeaways": []},
+            scenes=0, steps=0,
+            gaps=[ProjectionGap("empty", board.id,
+                                "the storyboard has no steps to project")],
+        )
 
     scenes: list[dict[str, Any]] = []
     for chapter, scene_count in zip(chapters, budget, strict=True):
