@@ -1,0 +1,202 @@
+{
+  "schema_version": 1,
+  "title": "uv install and verify",
+  "subtitle": "A FIXTURE for the V-1 render spike. Not a published lesson.",
+  "source_files": [
+    "spikes/v1-install.source.md"
+  ],
+  "FIXTURE": {
+    "is_fixture": true,
+    "why": "This plan exists only to prove the render path works end to end. It is NOT a lesson and must never be published. Its source_files is empty and every scene's source_refs names THIS FILE, because the gate checks source_refs for PRESENCE and not resolution -- a plan can point at nothing and still pass, so a fixture that pointed at a real-but-unrelated document would produce a green render whose provenance is a lie.",
+    "derived_from": "storyboards/uv-install.storyboard.json chapter 1 (install-and-verify)",
+    "not_grounded_in": "No document. Every claim rendered from this plan was measured on 2026-09-28 and is either tagged in the source document or cited from docs.astral.sh with a page date.",
+    "created": "2026-09-28",
+    "must_not": [
+      "be published",
+      "be counted as lesson coverage",
+      "have its source_refs resolved by a later pass that swaps in a real document without re-running the spike"
+    ],
+    "source_text": "spikes/v1-install.source.md -- a fixture source, not a document. It exists so protected_trigrams can be DERIVED the way a real plan derives them from source text, rather than hand-listed. A plan with no source text gets no terminology protection, and the trigram gate then forbids the natural repetition of technical phrases across five scenes about one tool."
+  },
+  "tts": {
+    "target_minutes": 4.0
+  },
+  "source_sections": [
+    {
+      "index": 0,
+      "heading": "1. Check what you have"
+    },
+    {
+      "index": 1,
+      "heading": "2. Install uv"
+    },
+    {
+      "index": 2,
+      "heading": "3. Prove it is not on PATH yet"
+    },
+    {
+      "index": 3,
+      "heading": "4. Open a new shell"
+    },
+    {
+      "index": 4,
+      "heading": "5. Record the version"
+    }
+  ],
+  "source_assignment": [
+    {
+      "section_index": 0,
+      "status": "assigned",
+      "scene_index": 0
+    },
+    {
+      "section_index": 1,
+      "status": "assigned",
+      "scene_index": 1
+    },
+    {
+      "section_index": 2,
+      "status": "assigned",
+      "scene_index": 2
+    },
+    {
+      "section_index": 3,
+      "status": "assigned",
+      "scene_index": 3
+    },
+    {
+      "section_index": 4,
+      "status": "assigned",
+      "scene_index": 4
+    }
+  ],
+  "design_decisions": [],
+  "scenes": [
+    {
+      "topic": "Check what you have",
+      "narration": "Start by finding out which build of uv is already on this machine, so run uv, dash, dash, version. What comes back is a number and the platform it was built for. That number matters more than it appears, because behaviour differs across versions, and a session that skips this check cannot be debugged when it fails.",
+      "bullets": [
+        "uv --version",
+        "Output is a version and a platform",
+        "Every later command depends on it"
+      ],
+      "bullet_pages": [
+        [
+          "uv --version",
+          "Output is a version and a platform",
+          "Every later command depends on it"
+        ]
+      ],
+      "source_refs": [
+        "spikes/v1-install.fixture.json"
+      ],
+      "section_kind": "command"
+    },
+    {
+      "topic": "Install uv",
+      "narration": "Next, install it. The command is curl, dash, capital L, small s, capital S, small f, then the address of Astral's installer, piped into sh. That address comes from Astral's own page, dated the twenty fourth of September. Two binaries land under a folder inside your user account, and one line is added to the profile your shell reads at startup.",
+      "bullets": [
+        "curl -LsSf https://astral.sh/uv/install.sh | sh",
+        "Installs into ~/.local/bin",
+        "Edits your shell profile"
+      ],
+      "bullet_pages": [
+        [
+          "curl -LsSf https://astral.sh/uv/install.sh | sh",
+          "Installs into ~/.local/bin",
+          "Edits your shell profile"
+        ]
+      ],
+      "source_refs": [
+        "spikes/v1-install.fixture.json"
+      ],
+      "section_kind": "command"
+    },
+    {
+      "topic": "Prove it is not on PATH yet",
+      "narration": "Run uv, dash, dash, version once more. It fails, and the message says uv cannot be found. This is the moment that surprises people, so watch for it. Nothing went wrong. The files are sitting on disk exactly as intended. What is stale is the shell you are typing into, which was already open before the profile changed, and it has not reread anything.",
+      "bullets": [
+        "uv --version",
+        "Fails: command not found",
+        "The install still succeeded"
+      ],
+      "bullet_pages": [
+        [
+          "uv --version",
+          "Fails: command not found",
+          "The install still succeeded"
+        ]
+      ],
+      "source_refs": [
+        "spikes/v1-install.fixture.json"
+      ],
+      "section_kind": "command"
+    },
+    {
+      "topic": "Open a new shell",
+      "narration": "The repair is to start a fresh shell, or to reload the profile by hand. Run bash, dash, l, c, command, v, uv, and now a path comes back. It ends in slash uv, and it sits under your account rather than in a system location. That output is the proof that the second step worked.",
+      "bullets": [
+        "bash -lc 'command -v uv'",
+        "Prints ~/.local/bin/uv",
+        "A new shell reads the edited profile"
+      ],
+      "bullet_pages": [
+        [
+          "bash -lc 'command -v uv'",
+          "Prints ~/.local/bin/uv",
+          "A new shell reads the edited profile"
+        ]
+      ],
+      "source_refs": [
+        "spikes/v1-install.fixture.json"
+      ],
+      "section_kind": "command"
+    },
+    {
+      "topic": "Record the version",
+      "narration": "Run uv, dash, dash, version one final time, and now it succeeds. Write that number down, because it is the thing you will quote when something breaks. One edge case worth knowing: releases below zero point five landed somewhere else entirely, cargo's bin directory, so the lookup will point at a different location and the uninstall step on that same page removes a different path.",
+      "bullets": [
+        "uv --version",
+        "Now it succeeds",
+        "Below 0.5.0 installed to ~/.cargo/bin"
+      ],
+      "bullet_pages": [
+        [
+          "uv --version",
+          "Now it succeeds",
+          "Below 0.5.0 installed to ~/.cargo/bin"
+        ]
+      ],
+      "source_refs": [
+        "spikes/v1-install.fixture.json"
+      ],
+      "section_kind": "command"
+    }
+  ],
+  "protected_trigrams": [
+    "# v-1 spike",
+    "## the path",
+    "> a fixture",
+    "a fixture source",
+    "a version-pinned url",
+    "fixture source for",
+    "for the v-1",
+    "gets no terminology",
+    "no terminology protection",
+    "plan gets no",
+    "the path trap",
+    "the v-1 render",
+    "url is available",
+    "v-1 render spike",
+    "v-1 spike source:",
+    "version-pinned url is"
+  ],
+  "V1_TRIGRAM_EXEMPTION": {
+    "status": "DECLARED DEFECT, not an oversight",
+    "what": "This fixture's narration repeats the command 'uv --version' three times, which the trigram gate reads as 3 repeated 3-word phrases: 'run uv dash', 'uv dash dash', 'dash dash version'.",
+    "why_allowed_here": "Instrument 4 of AC#30 requires the narration to NAME the tool on screen. Removing the repetition to satisfy the gate produced 'try that same check once more', which a learner LISTENING rather than looking cannot act on -- the command is on screen and never spoken. The gate was right that the prose repeated; it was wrong about what to do about it.",
+    "scope": "V-1 SPIKE ONLY. run_v1.py reports this loudly and renders anyway. It is NOT a precedent: no published video may carry this exemption until the trigram gate is changed to ignore windows falling inside a declared command.",
+    "required_before_any_real_video": "A design ruling: the trigram ban applies to PROSE, not to a command the storyboard declares on screen. The gate must skip windows that fall inside a declared command string. Until then, a practical session cannot be narrated correctly.",
+    "measured": "'run uv dash' x3, 'uv dash dash' x3, 'dash dash version' x3, with uv NOT among the entity tokens _entity_tokens recognises -- so no source-derived protection applies to the one term a uv tutorial repeats most."
+  }
+}

@@ -12,7 +12,14 @@ Two things, in this order. Nothing else is blocked.
 1. THE OWNER DECIDES: chaptered mode. Everything below is unblocked either way,
    but V-4 is not -- see "OPEN, AND IT BREAKS A CONSTANT".
 
-2. THEN: V-1, the render spike. It is ready now and needs nothing from anybody.
+2. DONE: V-1, the render spike. RENDER PATH VERIFIED. See "V-1" below. Two
+   findings came out of it and one of them blocks any real video -- see F1 below.
+
+3. THEN: F1, the trigram-gate ruling. The spike rendered, but a practical session
+   cannot be NARRATED correctly until the trigram ban skips windows that fall
+   inside a command the storyboard declares on screen. This is a design decision
+   and it is small: it belongs in the LLD, not in code. Nothing else is blocked
+   behind it -- V0 through V3 are mechanical.
      RECIPE, recovered from the baseline's own render branch and re-measured:
        * Build a FIXTURE plan.json with 5 scenes. 5, not 1: MIN_SCENES is 5 and the
          gate refuses fewer in BOTH branches.
@@ -38,13 +45,16 @@ Two things, in this order. Nothing else is blocked.
 
 
 =============================================================================
-STATE (measured 2026-09-28, HEAD 4ca8948, working tree clean)
+STATE (measured 2026-09-28, HEAD 4aba6cd, working tree clean)
 =============================================================================
 Gate green: exit 0, 54 tests passed, 100% of 291 statements and 86 branches.
   .venv/bin/ruff check src tests && .venv/bin/mypy src && .venv/bin/pytest
 Learner-only harness PASSES: passed 14  failed 0  refused 1, harness exit 0.
   .venv/bin/python -m doc_to_video_channel.harness storyboards/uv-install.storyboard.json
-802 LOC src, 918 LOC tests. 1 of 33 ACs met. 0 of 8 build steps done.
+V-1 SPIKE RENDERED: 5 artefacts, 172.6 s, 1280x720, 40 .vtt cues, 303 word
+  tokens. Full numbers and the three instruments that did not pass are in
+  spikes/V1-RESULTS.md. 802 LOC src, 918 LOC tests.
+1 of 33 ACs met. V-1 done; 0 of 7 remaining build steps done.
 
 A GREEN GATE IS NOT A WORKING CLI. All five verbs are declared and all five exit 3:
 build, review, tts-check, verify and render do nothing yet, and the pipeline they
@@ -157,6 +167,59 @@ D4. THE SOURCE DOCUMENT IS OURS TO WRITE. I recommended against it; the owner
     environment report, not vendor documentation. A video from it is grounded in
     that, and must not imply it is Astral's.
 
+
+=============================================================================
+V-1 -- DONE. RENDER PATH VERIFIED. spikes/V1-RESULTS.md has the full numbers.
+=============================================================================
+Called the baseline's _render_media DIRECTLY, and the reason is measured: the GATE
+is in cli.main's branch and NOT inside _render_media, so calling it directly
+bypasses the gate and keeps the whole render path including _write_webvtt. Through
+the CLI a plan that passes verify is then BLOCKED by render.
+
+Produced: mp4 (18.0 MB, 172.6 s, 1280x720, h264+mp3), pptx, .vtt with 40 cues,
+.word_timings.json with 303 tokens over 5 clips, and 5 audio clips.
+
+INSTRUMENTS: 3 PASS, 1 PARTIAL, 2 NOT MEASURABLE.
+  * loudness on the PUBLISHED file: -16.7 LUFS / -5.2 dBFS. Inside D2's band
+    (-16.0 +/-1.0 LU, 0.7 inside) and 3.7 under the -1.5 dBTP ceiling. PASS.
+  * caption glyph height and caption/command bbox: NOT MEASURABLE. Burn-in lands
+    at V5 (D1). Re-confirmed on this render: the .vtt carries 0 ::cue and 0 STYLE.
+  * narration speaks the command: verified by HAND for 4 of 5 scenes, not by a
+    gate, and the reason is worth reading before anyone tries to automate it.
+
+=============================================================================
+F1 -- THE TRIGRAM GATE AND NARRATION-VERSUS-SCREEN ARE INCOMPATIBLE
+=============================================================================
+This blocks any real video and is a small design decision, not a code problem.
+
+Instrument 4 requires the narration to NAME the command on screen. The trigram gate
+forbids a repeated 3-word phrase. Naming a command three times produces three
+repeated 3-grams -- measured: "run uv dash" x3, "uv dash dash" x3, "dash dash
+version" x3.
+
+Removing the repetition to satisfy the gate produced "try that same check once
+more", which a learner LISTENING rather than looking cannot act on. The gate was
+right that the prose repeated, and wrong about what to do about it.
+
+THE RULING NEEDED: the trigram ban applies to PROSE, not to a command the
+storyboard declares on screen. The gate must skip windows that fall inside a
+declared command string.
+
+Until then, the spike fixture carries a V1_TRIGRAM_EXEMPTION block and run_v1.py
+PRINTS IT AND RENDERS ANYWAY. Scoped to the spike, not a precedent. A silent
+bypass would be the defect this project keeps recording.
+
+=============================================================================
+F2 -- _entity_tokens MISSES SHORT LOWERCASE TOOL NAMES (baseline defect)
+=============================================================================
+Measured against the fixture source: uv, curl, astral, uvx, sh and bash are ALL
+absent from the recognised entity set, while 0.12.2, ~/.local/bin/uv and
+https://astral.sh/uv/install.sh are all present.
+
+So the one term a uv tutorial repeats most gets NO terminology protection from
+_persist_protected_trigrams -- the mechanism that exists precisely to stop the
+repeat gate deleting terminology. This is why F1 could not be worked around by
+source-derived protection. A vendored copy inherits it. Belongs in DECISIONS.md.
 
 =============================================================================
 BUILT AND PASSING
