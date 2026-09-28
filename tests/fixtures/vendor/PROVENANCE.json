@@ -1,0 +1,19 @@
+{
+  "why": "9 of the 315 reference tests read real documents that live OUTSIDE the reference's tests/ directory, so the reference suite is not hermetic. They are the document-cut tests -- the exact logic AC#17(a) covers -- so leaving them dead would leave V1's truncation fix unverified in this repo. Owner ruling 2026-09-28: vendor both, recorded, used only by tests.",
+  "vendor_ref": "a7d63e0",
+  "fixtures": [
+    {
+      "local": "tests/fixtures/vendor/mod03_gates.md",
+      "reference_path": "modules/08_concepts_mod03_gates.md",
+      "bytes": 18153,
+      "sha256": "1d8122c144d842cb"
+    },
+    {
+      "local": "tests/fixtures/vendor/mod04_release_gates.md",
+      "reference_path": "tests/fixtures/04_concepts_mod04_release_gates.md",
+      "bytes": 4220,
+      "sha256": "ed930007152aca0c"
+    }
+  ],
+  "resolved_as": "The vendored tests address these by the reference's repo-relative paths, so tests/conftest.py symlinks them into place at session start rather than editing any vendored test. The import-rename-only property is therefore preserved on all 7 files."
+}

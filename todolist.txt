@@ -438,18 +438,42 @@ V6 -- DONE. 315 REFERENCE TESTS LANDED. AND THEY FALSIFIED A V4 RULING.
   reference, 0 residual old references. Collection is 123+26+23+24+23+47+49 = 315,
   exactly the population AC#32 claims, over 486 collected with our 171.
 
-  THE RULING WAS WRONG, and 134 of the 315 failures said so. The V4/V5 ruling
-  dropped studio/__init__.py because "a facade is a second import path to every
-  module -- a method with two spellings is how a type drifts". The premise is false
-  of a re-export: a second path only drifts if it is a second DEFINITION, and a
-  re-export binds the object it re-exports, so there is nothing to drift. Measured:
-  with the facade dropped, ALL 134 failures were one error --
-  `AttributeError: module 'doc_to_video_channel.studio' has no attribute` -- over 48
-  distinct names. That is 42% of the acceptance suite broken by a ruling about a
-  mechanism that does not exist. Restored verbatim (218 lines, sha256 matches the
-  manifest, which was always written for the facade-present state -- my V4 edit was
-  the unmanifested deviation, and nothing caught it because verify was not re-run).
-  134 -> 10.
+  THE RULING WAS WRONG, and 134 of the 315 failures said so -- but the error is
+  OLDER than V6 and it was mine. §5.1 row 18 said *drop* the facade while the
+  paragraph 15 lines BELOW it recorded that the tests reach 48 distinct private names
+  over 261 sites through it. The document held both claims at once and ruled against
+  its own measurement. The `48` was already stored, stated with its population, and
+  re-deriving it at V6 CONFIRMED it -- it is not a V6 discovery and this file must
+  not present it as one.
+
+  What V6 added is the cost: 134 of 315 failures, every one
+  `AttributeError: module 'doc_to_video_channel.studio' has no attribute`, over those
+  same 48 names. 42% of the acceptance suite, for one reason, and that reason was a
+  ruling rather than a defect in the code. NO GATE CAUGHT IT, because every gate was
+  green -- a green gate over a suite that had not been copied yet cannot report on
+  the ruling it was silently contradicting.
+
+  The ruling's reason, "a facade is a second import path -- a method with two
+  spellings is how a type drifts", is false of a re-export: a second path only
+  drifts if it is a second DEFINITION, and a re-export binds the object it
+  re-exports. Restored verbatim (218 lines, sha256 matches the manifest, which was
+  always written for the facade-present state -- the V4/V5 edit was the unmanifested
+  deviation, and nothing caught it because verify was never re-run after it).
+  134 -> 10, then -> 0 once the 2 data files were vendored.
+
+  LLD CORRECTED, not deleted: §5.1 row 18 rewritten to copy + the reversal and its
+  cost; §12.7 retitled and its body replaced (it argued for the conclusion its own
+  evidence refutes); §14.7 marked REVERSED. Six places asserted "drop" and every one
+  was live.
+
+  NOT A FINDING, recorded because it was nearly mistaken for one: the whole-tree copy
+  is a MEASURED IMPORT CLOSURE, not preference. §5.1 rows 1-16 -- `plan` pulls in
+  config/duration/llm/narration/text/topics/util/voice, `validate` pulls in 8 more,
+  `video` pulls in BOTH pptx and slides. `cli.py` is 3 of the 4
+  `_render_blocking_problems` call sites, i.e. the grounding gate itself, and
+  `__main__.py` was dropped for the genuinely different reason that it adds a door to
+  the SAME door and carries no behaviour. The two-renderer cost is already on the
+  record at §1287-1291 by name. Do not re-open this as "why did we copy it all".
 
   MY OWN TEST WAS FALSIFIED BY THE SAME EVIDENCE and is now inverted, not deleted:
   `test_the_studio_package_re_exports_nothing` asserted the absence. It now asserts
@@ -462,12 +486,26 @@ V6 -- DONE. 315 REFERENCE TESTS LANDED. AND THEY FALSIFIED A V4 RULING.
       vendored  5,358 stmts 61%   (was 12-16% before the reference tests landed)
       whole tree 5,834 stmts 66%  <- the figure that read 18% this morning
 
-  STILL OPEN, and it is DATA not code: 9 of the 315 cannot run. They read
-  `modules/08_concepts_mod03_gates.md` (18,153 bytes) and
-  `tests/fixtures/04_concepts_mod04_release_gates.md` (4,220 bytes), which exist in
-  the reference tree and not here. So the reference's suite is NOT hermetic: 9 of
-  its 315 tests depend on files outside its tests/ directory. The vendored figure
-  above is measured WITH those 9 dead, so 61% is a floor, not a ceiling.
+  DATA, NOT CODE, and now CLOSED. 9 of the 315 read two real documents that live
+  OUTSIDE the reference's tests/ directory -- `modules/08_concepts_mod03_gates.md`
+  (18,153 B) and `tests/fixtures/04_concepts_mod04_release_gates.md` (4,220 B) -- so
+  the reference's suite is NOT hermetic. They are the document-cut tests, i.e. exactly
+  the logic AC#17(a) covers, so leaving them dead would have left V1's truncation fix
+  unverified here. Owner ruling: vendor both, recorded, used only by tests.
+
+  Landed as `tests/fixtures/vendor/` + `PROVENANCE.json` (reference path, bytes,
+  sha256 for each). The vendored tests address them by the reference's repo-relative
+  path strings, so `tests/conftest.py` symlinks them into place per session rather
+  than editing 9 path literals inside vendored files -- the import-rename-only
+  property is preserved on all 7 files, and the symlinks are gitignored so nothing
+  generated is committed. The bytes live once; the provenance is on disk.
+
+  First attempt at the conftest used `source.relative_to(_ROOT)` for the symlink
+  target. A symlink's target resolves against the LINK'S OWN DIRECTORY, not the repo
+  root, so `modules/08_concepts_mod03_gates.md` pointed at
+  `modules/tests/fixtures/vendor/...` and all 9 kept failing on the same
+  FileNotFoundError with the symlink plainly visible in `ls`. `os.path.relpath`
+  against the link's parent is the correct base. 315/315 pass.
 
   mypy tests: 74 errors in the 7 vendored files, as predicted. The gate is
   `mypy src` and it is clean.
