@@ -363,6 +363,21 @@ def test_vendored_and_original_modules_are_segregated() -> None:
     package = Path(__file__).resolve().parents[1] / "src/doc_to_video_channel"
     vendored = {p.name for p in (package / "studio").glob("*.py")} - {"__init__.py"}
     originals = {p.name for p in package.glob("*.py")} - {"__init__.py"}
-    assert vendored == {"util.py", "text.py", "config.py"}
-    assert originals == {"storyboard.py", "harness.py", "vendor.py"}
+
+    # DERIVED from the manifest, not hardcoded. The first version asserted
+    # `vendored == {"util.py", "text.py", "config.py"}` and failed the moment V2
+    # landed two more -- a test that must be edited every time a build step
+    # completes is a test that will be left stale instead.
+    manifest = json.loads((package / "vendor_manifest.json").read_text(encoding="utf-8"))
+    landed = {
+        Path(e["path"]).name
+        for e in manifest["modules"]
+        if e["decision"] == "copy" and (package / "studio" / Path(e["path"]).name).is_file()
+    }
+    assert vendored == landed, (
+        f"studio/ holds {sorted(vendored)} but the manifest says {sorted(landed)} are landed"
+    )
+    assert originals == {"storyboard.py", "harness.py", "vendor.py"}, (
+        f"an unexpected module beside the package: {sorted(originals)}"
+    )
     assert not (vendored & originals), "a filename is in both trees"

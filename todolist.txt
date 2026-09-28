@@ -31,8 +31,12 @@ Two things, in this order. Nothing else is blocked.
    A5 is fixed, and AC#17(a) turned out to be FALSE in the code we copied. See
    "V1 -- DONE" below.
 
-6. THEN: V2 -- topics.py + schema.py, 211 lines, the two Pydantic models. Closes
-   AC#6 and AC#7. Nothing is blocked.
+6. DONE: V2. 211 lines, both byte-identical; AC#7 needed a real change and
+   AC#6 turned out to be already met. See "V2 -- DONE" below.
+
+7. THEN: V3 -- BRAND_NAME / BRAND_FOOTER in config.py, which arrived WHOLE at V1.
+   So V3 is a CHANGE to a module that already exists, not a copy of two lines.
+   Closes AC#31. One scene rendered, frames sampled, old brand absent.
 
 6. NOT BUILT, ON PURPOSE: the files themselves. V0 measures intent; V1-V5 copy.
    A manifest built from the LLD's table would agree with the table by
@@ -63,21 +67,40 @@ Two things, in this order. Nothing else is blocked.
 
 
 =============================================================================
-STATE (measured 2026-09-28, HEAD b4027c0)
+STATE -- HOW TO MEASURE IT, NOT WHAT IT WAS
 =============================================================================
-Gate green: exit 0, 54 tests passed, 100% of 291 statements and 86 branches.
-  .venv/bin/ruff check src tests && .venv/bin/mypy src && .venv/bin/pytest
-Learner-only harness PASSES: passed 14  failed 0  refused 1, harness exit 0.
-  .venv/bin/python -m doc_to_video_channel.harness storyboards/uv-install.storyboard.json
-V-1 SPIKE RENDERED: 5 artefacts, 172.6 s, 1280x720, 40 .vtt cues, 303 word
-  tokens. Full numbers and the three instruments that did not pass are in
-  spikes/V1-RESULTS.md.
-V0 DONE: vendor_manifest.json verifies against the tree at a7d63e0. AC#33 closed.
-V1 DONE: 955 lines vendored byte-identical, A5 fixed, AC#17(a) found FALSE in the
-  copied code and fixed.
-3 of 33 ACs met. V-1, V0, V1 done; 5 of 8 build steps remaining.
-Gate: exit 0, 96 tests, 72% of 782 statements (down from 100% over 400 -- the
-  vendored modules arrived and their reference tests come at V6).
+**This block deliberately stores no gate numbers, and that is a correction.** It
+used to, and the file contradicted itself: "54 tests" in one line and "96 tests"
+in another, one commit apart, because restating a measurement is how a stored
+number outlives the thing it measured. Three times in two days. **Run these:**
+
+  GATE       .venv/bin/ruff check src tests && .venv/bin/mypy src && .venv/bin/pytest
+  TYPING     .venv/bin/mypy tests          # the gate is `mypy src` BY DECISION --
+                                           # the 7 vendored test files carry 74
+                                           # errors. Ours are typed and stay typed.
+  COVERAGE   .venv/bin/pytest --cov --cov-report=term-missing
+  HARNESS    .venv/bin/python -m doc_to_video_channel.harness \
+               storyboards/uv-install.storyboard.json
+  MANIFEST   .venv/bin/python -m doc_to_video_channel.vendor verify
+
+Read `COVERAGE` before quoting a percentage. It FELL when the vendored modules
+arrived -- `studio/text.py` sits near 14% because the reference exercises its
+public functions through the whole facade, and V6 brings those tests. A number
+going down because a bigger, less-covered body arrived is not a regression, and
+it is not something to "fix" by setting a floor on a population that has not been
+measured yet.
+
+WHAT IS TRUE, AND IS ABOUT THE WORK RATHER THAN A MEASUREMENT:
+  * A GREEN GATE IS NOT A WORKING CLI. All five verbs are declared; all five exit 3.
+  * V-1 DONE. The render path is verified: 5 artefacts, 172.6 s, 1280x720, 40 .vtt
+    cues, 303 word tokens. Three instruments did not pass and the reasons are in
+    spikes/V1-RESULTS.md.
+  * V0 DONE. vendor_manifest.json verifies against the tree at a7d63e0. AC#33 closed.
+  * V1 DONE. 955 lines vendored byte-identical, A5 fixed, AC#17(a) found FALSE in
+    the copied code and fixed.
+  * V2 DONE. 211 lines, AC#7 turned out to need a real change, A44 found.
+  * The vendored modules live in doc_to_video_channel/studio/ -- see the path
+    mapping below. The façade is still dropped; our marker re-exports nothing.
 
 A GREEN GATE IS NOT A WORKING CLI. All five verbs are declared and all five exit 3:
 build, review, tts-check, verify and render do nothing yet, and the pipeline they
@@ -332,6 +355,55 @@ BASELINE PATH -> OUR PATH. Read this before looking for a file.
   dropped facade existed to prevent.
 
 =============================================================================
+V2 -- DONE. 211 lines. AC#7 needed a real change; AC#6 was already met.
+=============================================================================
+  topics.py 88 + schema.py 123 = 211 exactly, both byte-identical to VENDOR_REF.
+  These are the FIRST vendored modules with internal imports -- schema.py imports
+  _has_non_latin_script from text, topics.py imports the banned n-grams from config
+  -- which is precisely why V2 follows V1. 4 and 7 relative imports respectively.
+
+  THE TWO-SPELLING DEFECT WAS REAL, and both halves were live.
+    config._SECTIONS : 'what is this', 'why do we need it', ...   lower case
+    a built plan.json: "section": "What Is This"                 Title Case
+  Two spellings of one concept, and `section: str` accepted ANY string, so
+  'bogus' validated clean and nothing ever noticed. 133 reference plan files
+  carry section values and every one is a member -- but under the other spelling.
+
+  THE FIX: `section` is now `SectionKind | None`, a Literal over the five canonical
+  members, with a before-validator that canonicalises a case-insensitive match and
+  RAISES on anything else. Three decisions that could each have gone the other way:
+    * canonical form is LOWER case, because that is what config._SECTIONS holds and
+      therefore what the planner is told the sections are;
+    * Title Case is still ACCEPTED, because 133 reference plan files carry it and
+      refusing them would break inputs that were never wrong. It is a spelling
+      canonicaliser, NOT repair: it maps a known member and rejects everything else,
+      and it never invents a section;
+    * `| None`, NOT a defaulted member. The baseline default was "" and a scene with
+      no section is legitimate. Defaulting to "what is this" would FABRICATE a
+      section for every such scene, and would make an omitted field fail. So "" and
+      absent both map to None.
+  I got the third one wrong first and would have broken real plans; measuring all
+  eight cases rather than the two that mattered is what caught it.
+
+  AC#6 WAS ALREADY MET, and its wording is looser than it looks: it is about the
+  SCRIPT, not about arbitrary strings. My first test passed the literal "section"
+  as the value and concluded both cases were rejected -- a different claim, and a
+  wrong one. AC#7's fix necessarily rejects Latin non-members too, which is the
+  point.
+
+  NEW DEFECT, RECORDED NOT FIXED -- A44. `narration` is OUTSIDE _FIELD_NAMES, so a
+  non-Latin narration is ACCEPTED while the same script in title or bullets is
+  refused. Measured. The check was built for text a viewer READS; narration is text
+  a viewer HEARS, and a script the TTS cannot pronounce yields gibberish audio and
+  a clean gate. Out of V2's scope: it needs a ruling on whether a non-Latin
+  narration is a refusal or a supported locale.
+
+  TWO MUTATIONS HOLD AC#7: put the field back to `str` and the type test fails;
+  default it to a member and the absent-section test fails. Both confirmed by
+  mutating the file, watching the suite go red, and restoring it.
+
+
+=============================================================================
 V1 -- DONE. 955 lines, byte-identical, plus A5. AC#17(a) WAS FALSE.
 =============================================================================
   util.py 230, text.py 369, config.py 356 = 955 exactly, and all three sha256-match
@@ -432,7 +504,7 @@ storyboards/uv-install.storyboard.json
   src/doc_to_video_channel/storyboard.py runs FIVE checks (contract completeness,
   elision, unshown-state, undelivered-state, unjustified-env) and supplies
   spoken_command_trigrams(), the F1 mechanism.
-  23 tests, 5 of which are named `test_mutation_*` and prove the checks can fail:
+  28 tests, 5 of which are named `test_mutation_*` and prove the checks can fail:
   remove a creating step, blank a command, elide one, strip a replay_skip_reason,
   and prose claims creation the command does not make. Two further cases --
   dropping an indirect declaration, and naming the wrong file in one -- also prove

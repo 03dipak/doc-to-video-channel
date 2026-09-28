@@ -528,7 +528,7 @@ with no number, which is `DOCS.md` rule 8 inverted. It is **V1** because
 so placing it later would mean shipping a reader that raises
 `UnicodeDecodeError` on `.docx` and calling the tree green. **`AC#17`(b)
 therefore unblocks at V1**, and its measured population is below |
-| **V2** | `topics.py`, `schema.py` — 211 lines | the two Pydantic models validate; `AC#6`'s Devanagari case reaches the validator |
+| **V2** | `topics.py`, `schema.py` — **211 lines** (measured, both byte-identical to `VENDOR_REF`; `schema.py` then changed for `AC#7`) | the two Pydantic models validate; `AC#6`'s Devanagari case reaches the validator. *These are the first vendored modules with **internal** imports — `schema.py` imports `_has_non_latin_script` from `text`, `topics.py` imports the banned n-grams from `config` — which is why V2 follows V1.* **`AC#7` is met here and required a real change:** `section` was a bare `str` accepting anything. Measured: `'bogus'` validated clean. See §12.8. |
 | **V3** | `BRAND_NAME` / `BRAND_FOOTER` — **2 lines** | one scene rendered, frames sampled, old brand absent and new brand present. `PACKAGE_NAME` renders on **100% of runtime frames**, so copying it verbatim is *correct* per §5.5 and invisible in a 17k-line diff — which is why it is its own commit |
 | **V4** | `plan.py` — 2,505 lines, alone | **carries §5.6's harness in the same commit**, not after it: the harness's purpose is to run `plan_lesson`, and `plan_lesson` arrives *with* V4, so gating V4 on the harness is circular |
 | **V5** | the remaining **10** modules (`cli`, `duration`, `llm`, `narration`, `pptx`, `slides`, `speech`, `validate`, `video`, `voice` — **6,821** lines, *not the 9,326 v010 stated: measured, and the build order is now checked by `test_the_build_order_accounts_for_every_line`*) | all 315 vendored tests pass; the audio gate and caption gate are reachable; **`write_media` exists and both `_render_media` call sites route through it** — the media chokepoint §8.3 creates here, and `AC#26` is a V5 criterion because the component it gates does not exist before this step. *v008 said 8; 16 − V1(3) − V2(2) − V4(1) = 10* |
@@ -1627,6 +1627,58 @@ import path, and the flat path raises `ModuleNotFoundError`. Verified by appendi
 **What did not change.** V1's three modules are byte-identical to `VENDOR_REF`
 except for the three recorded edits (`A5` and two annotations), and the manifest
 hashes are unaffected — a move is not a modification.
+
+### 12.8 `AC#7` needed a real change, and the two-spelling defect was real
+
+**Measured at V2, and both halves of the defect were live.**
+
+`config._SECTIONS` spells the five kinds in **lower case**:
+`('what is this', 'why do we need it', 'how does it work', 'example', 'takeaway')`.
+A reference `plan.json` emits **`"section": "What Is This"`** — **Title Case**. Two
+spellings of one concept, in the same codebase, and `section: str` accepted **any**
+string, so `'bogus'` validated clean and nothing ever noticed the divergence.
+
+**The change.** `section` is now typed `SectionKind | None`, where `SectionKind` is
+a `Literal` over the five canonical members, plus a `mode="before"` canonicaliser
+that resolves a case-insensitive match to the canonical spelling and **raises on
+anything else**.
+
+Three decisions inside that, each of which could have gone the other way:
+
+1. **Canonical form is lower case**, because that is what `config._SECTIONS` holds
+   and therefore what the planner is *told* the sections are. The stored value is
+   the canonical one, so the two spellings cannot both be in the tree.
+2. **Title Case is still accepted.** 133 reference plan files already carry it, and
+   refusing them would break inputs that were never wrong. This is a **spelling
+   canonicaliser, not repair**: it maps a known member onto its canonical spelling
+   and rejects everything else. It never invents a section.
+3. **`| None`, not a defaulted member.** The baseline's default was `""`, and a
+   scene with no section is legitimate — most scenes are not section cards.
+   Defaulting to `"what is this"` would **fabricate** a section for every such
+   scene, and would also make an omitted field fail validation. So `""` and absent
+   both map to `None`.
+
+The first version of this change got (3) wrong and would have broken real plans;
+it was caught by measuring the eight cases rather than the two that mattered.
+
+**`AC#6` was already met, and its wording is looser than it looks.** It says "a
+Devanagari `section` is rejected and a Latin one is not" — about the **script**, not
+about arbitrary strings. My first test passed the literal `"section"` as the value
+and concluded both cases were rejected, which is a different claim and a wrong one.
+`AC#7`'s fix necessarily rejects Latin non-members too, which is the point: a
+section the planner never named is one the renderer has no layout for.
+
+**A new defect found while testing it, recorded not fixed: `A44`.** `narration` is
+**outside** `_FIELD_NAMES`, so a non-Latin narration is accepted while the same
+script in `title` or `bullets` is refused. The check was built for text a viewer
+*reads*; narration is text a viewer *hears*, and a script the TTS voice cannot
+pronounce yields gibberish audio and a clean gate. Understandable, and still a
+defect. **Out of V2's scope** — it needs a ruling on whether a non-Latin narration
+is a refusal or a supported locale.
+
+**Two mutations hold it.** Put the field back to `str` and the type test fails;
+default it to a real member and the absent-section test fails. Both confirmed by
+mutating the file and watching the suite go red, then restoring it.
 
 ## 13. Acceptance criteria
 
