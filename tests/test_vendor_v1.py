@@ -26,7 +26,7 @@ from pathlib import Path
 
 import pytest
 
-from doc_to_video_channel import config, text, util
+from doc_to_video_channel.studio import config, text, util
 
 # --- the three modules import, and are the files the manifest recorded -------
 
@@ -44,12 +44,11 @@ def test_the_copies_are_the_manifests_files_with_annotations_added() -> None:
     edits to it. Every OTHER module must be byte-identical, or "we vendored the
     baseline" is a claim with no check behind it.
     """
-    manifest_path = (
-        Path(__file__).resolve().parents[1] / "src/doc_to_video_channel/vendor_manifest.json"
-    )
+    package = Path(__file__).resolve().parents[1] / "src/doc_to_video_channel"
+    manifest_path = package / "vendor_manifest.json"
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     recorded = {e["path"]: e["sha256"] for e in manifest["modules"]}
-    root = Path(__file__).resolve().parents[1] / "src/doc_to_video_channel"
+    root = package / "studio"
 
     import hashlib
 

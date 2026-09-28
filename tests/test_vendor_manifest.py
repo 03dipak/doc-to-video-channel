@@ -14,6 +14,7 @@ arithmetic above it wrong, and only a check that walks both catches it.
 
 from __future__ import annotations
 
+import ast
 import json
 from pathlib import Path
 from typing import Any
@@ -298,3 +299,70 @@ def test_verify_prints_each_problem_and_exits_one(
     assert "2 problem(s)" in out
     assert "studio/util.py" in out
     assert "studio/text.py" in out
+
+
+# --- the studio/ subpackage: a directory, NOT a facade -----------------------
+#
+# The LLD concluded "no studio/ subpackage" from a premise about RE-EXPORTS. Those
+# are two different decisions, and conflating them is how the conclusion went
+# wrong. Dropping the facade stands; creating the directory is separate.
+
+
+def test_the_studio_package_re_exports_nothing() -> None:
+    """A facade is a second import path to every module, and that is what §5.1 row 18 drops.
+
+    So the package marker must contain no `import`, no `from` and no `__all__`.
+    Asserted on the source rather than on `dir()`, because `dir()` also shows
+    submodules that something has already imported -- which is Python binding
+    them, not this file exporting them.
+    """
+    marker = Path(__file__).resolve().parents[1] / "src/doc_to_video_channel/studio/__init__.py"
+    tree = ast.parse(marker.read_text(encoding="utf-8"))
+
+    # The AST, not the raw text. The first version searched the source for the
+    # string "import " and failed on this very docstring, which contains the
+    # phrase "one import path" -- a test that cannot distinguish a word from the
+    # code that uses it is not a test.
+    for node in ast.walk(tree):
+        assert not isinstance(
+            node, (ast.Import, ast.ImportFrom)
+        ), f"studio/__init__.py imports at line {node.lineno}: that is a re-export facade"
+    for node in ast.walk(tree):
+        assert not (
+            isinstance(node, ast.Assign)
+            and any(getattr(t, "id", "") == "__all__" for t in node.targets)
+        ), "studio/__init__.py defines __all__, which is a facade's export list"
+
+    assert len(tree.body) == 1 and isinstance(tree.body[0], ast.Expr), (
+        "the marker should be a docstring and nothing else"
+    )
+
+
+def test_every_vendored_module_has_exactly_one_import_path() -> None:
+    """Two spellings of one module is how a type drifts -- the LLD's own words.
+
+    So the flat path must NOT still work. This is the test that keeps the move
+    from becoming a second door: `doc_to_video_channel.util` must be gone, and
+    `doc_to_video_channel.studio.util` must work.
+    """
+    import importlib
+
+    for name in ("util", "text", "config"):
+        with pytest.raises(ModuleNotFoundError):
+            importlib.import_module(f"doc_to_video_channel.{name}")
+        assert importlib.import_module(f"doc_to_video_channel.studio.{name}") is not None
+
+
+def test_vendored_and_original_modules_are_segregated() -> None:
+    """Provenance is visible: everything under studio/ is vendored, the rest is ours.
+
+    The point of the directory. In a flat layout a reader cannot tell which files
+    came from the baseline without consulting the manifest, and the four modules
+    we wrote are indistinguishable from the three we copied.
+    """
+    package = Path(__file__).resolve().parents[1] / "src/doc_to_video_channel"
+    vendored = {p.name for p in (package / "studio").glob("*.py")} - {"__init__.py"}
+    originals = {p.name for p in package.glob("*.py")} - {"__init__.py"}
+    assert vendored == {"util.py", "text.py", "config.py"}
+    assert originals == {"storyboard.py", "harness.py", "vendor.py"}
+    assert not (vendored & originals), "a filename is in both trees"

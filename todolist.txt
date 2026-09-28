@@ -295,6 +295,43 @@ V0 -- DONE. AC#33 CLOSED. src/doc_to_video_channel/vendor.py + vendor_manifest.j
       verified clean. All 5 are recomputed now.
 
 =============================================================================
+BASELINE PATH -> OUR PATH. Read this before looking for a file.
+=============================================================================
+  Module("studio/util.py", ...)   names a path IN THE BASELINE, not a destination.
+  The baseline lives at:  ../doc-to-video-tutor/src/doc_to_video_tutor/studio/
+  Nothing in THIS repo was ever supposed to look like that, and there is no
+  doc_to_video_tutor/ directory here. That absence is correct, not a gap.
+
+    baseline                        ->  ours
+    ---------------------------       ---------------------------------
+    studio/util.py       (230)  ->    doc_to_video_channel/studio/util.py
+    studio/text.py       (369)  ->    doc_to_video_channel/studio/text.py
+    studio/config.py     (356)  ->    doc_to_video_channel/studio/config.py
+    studio/topics.py     (88)   ->    .../studio/topics.py            (V2)
+    studio/schema.py     (123)  ->    .../studio/schema.py            (V2)
+    studio/plan.py       (2505) ->    .../studio/plan.py              (V4)
+    studio/{cli,duration,llm,narration,pptx,slides,speech,validate,video,voice}
+                                    ->    .../studio/<name>.py         (V5)
+    __init__.py          (280)  ->    DROPPED (dead symbols + deprecated shim)
+    studio/__init__.py   (218)  ->    DROPPED (a re-export facade)
+    studio/__main__.py   (7)    ->    DROPPED (would be a 2nd entry point)
+
+  Line counts in brackets are the BASELINE's. util.py is 288 here: A5 plus two
+  annotations, and vendor_manifest.json records the baseline's hash so the
+  difference is visible rather than surprising.
+
+  OURS, not vendored, and they sit BESIDE the package on purpose:
+    doc_to_video_channel/__init__.py   the one entry point (P0-d)
+    doc_to_video_channel/storyboard.py the step contract
+    doc_to_video_channel/harness.py    replay + learner-only
+    doc_to_video_channel/vendor.py     VENDOR_REF, the manifest, verification
+
+  import:  from doc_to_video_channel.studio import util, text, config
+  There is NO flat path. doc_to_video_channel.util raises ModuleNotFoundError, and
+  a test holds it that way, because two spellings of one module is the drift the
+  dropped facade existed to prevent.
+
+=============================================================================
 V1 -- DONE. 955 lines, byte-identical, plus A5. AC#17(a) WAS FALSE.
 =============================================================================
   util.py 230, text.py 369, config.py 356 = 955 exactly, and all three sha256-match
@@ -335,6 +372,16 @@ V1 -- DONE. 955 lines, byte-identical, plus A5. AC#17(a) WAS FALSE.
   AND A SCOPE NOTE: V3 says "BRAND_NAME / BRAND_FOOTER -- 2 lines", but they live
   in config.py, which arrives WHOLE at V1. So V3 is a CHANGE to a module that
   already exists, not a copy of two lines.
+
+  AND A CORRECTION I OWED: v010 said in three places that this project creates NO
+  studio/ subpackage. That was wrong, and it was mine -- it read "the re-export
+  facade is dropped" and concluded "therefore no directory", which are two
+  different decisions. The 16 vendored modules now live in
+  doc_to_video_channel/studio/. The facade is still dropped: our marker there
+  re-exports NOTHING, and a test parses its AST to prove it. That test first
+  searched the raw source for the string "import " and failed on a docstring
+  containing the words "one import path" -- a test that cannot tell a word from the
+  code using it is not a test. It has teeth: appending a re-export makes it fail.
 
   COVERAGE IS NOW 72%, NOT 100%, and that is the honest number. text.py sits at
   14% because the reference tests exercise its public functions through the whole

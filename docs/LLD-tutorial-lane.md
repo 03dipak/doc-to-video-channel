@@ -388,7 +388,7 @@ modules.**
 | 15 | `schema.py` | 123 | copy | `SlideScene`, `LessonPlan` — the only two Pydantic models |
 | 16 | `topics.py` | 88 | copy | `_BANNED_NGRAMS` consumers |
 | 17 | package-root `__init__.py` | 280 | **drop** | every symbol is dead or is the deprecated shim: `TUTOR_PROMPT`, `generate_lesson`, `text_to_audio`, `_split_sections`, `_make_slide_image`, `create_video`, `main`. **Nothing imports the root from inside the package** (0 hits) |
-| 18 | `studio/__init__.py` | 218 | **drop** | a re-export façade only. §5 creates **no** `studio/` subpackage, so there is nothing for it to front. Its re-exports are **5 of the 39** and each carries `# noqa: F401` — a suppression that would hide a *second* binding of exactly the constants §4 exists to reach |
+| 18 | `studio/__init__.py` | 218 | **drop** | a re-export façade only. **v010 concluded from this that §5 creates no `studio/` directory at all — wrong, and mine.** The conclusion rested on a premise about re-exports, not about directories. The 16 modules now live in `doc_to_video_channel/studio/`; the façade is still dropped, and our marker there re-exports **nothing**. See §12.7. Its re-exports are **5 of the 39** and each carries `# noqa: F401` — a suppression that would hide a *second* binding of exactly the constants §4 exists to reach |
 | 19 | `studio/__main__.py` | 7 | **drop** | exists only to serve `python -m`. §5 creates one entry point, `main(argv)`, and a `__main__` would be a second door |
 
 **16 copied = 10,492 lines · 3 dropped = 505 · total 10,997 = the whole tree.**
@@ -1578,6 +1578,56 @@ spelling-aware normaliser or a human, and until one exists `AC#30` instrument 4 
 verified **by hand, for 4 of 5 scenes**, and the baseline is right to treat it as a
 `soft_finding`.
 
+### 12.7 The `studio/` directory exists; the façade does not (CORRECTED)
+
+**v010 was wrong, and the error was a conflation.** Three places in this document
+said "§5 creates **no** `studio/` subpackage", and the reasoning behind all three
+rested on a premise about **re-exports**: `studio/__init__.py` is a façade whose
+only job is to let callers write `from doc_to_video_tutor import studio as S`, so
+dropping it leaves no façade. From that, the conclusion drawn was that the
+*directory* should not exist either.
+
+Those are two different decisions, and only one of them is about re-exports. The
+owner caught it by asking where the `studio` folder was, having read
+`Module("studio/util.py", ...)` and found no `studio/` in this repository.
+
+**What stands.** §5.1 row 18 drops the façade, and that is unaffected. Our
+`studio/__init__.py` is a **bare package marker**: a docstring, zero `import`
+statements, zero `__all__`. So `doc_to_video_channel.studio.util` is the only way
+to reach `util`, and there is no second door — which is the whole reason the
+façade is dropped, and the LLD's own words for it: *"a method with two spellings
+is how a type drifts."*
+
+**What changes.** The 16 vendored modules live in `doc_to_video_channel/studio/`
+and our four original modules sit beside the package. Three reasons, and none of
+them is correctness:
+
+1. **Provenance becomes visible.** Everything under `studio/` came from the
+   baseline; `storyboard.py`, `harness.py` and `vendor.py` are ours. In a flat
+   layout that distinction is something a reader has to look up.
+2. **It forecloses a collision class.** V5 brings `cli.py`, `plan.py` and
+   `config.py`. Measured: none of those clash with our four today, so this is
+   preventative — but nothing in the design stopped a future original module from
+   being named `cli.py` and colliding with a vendored one.
+3. **Relative imports keep working either way**, verified rather than assumed.
+   `from .util import` in a vendored `plan.py` resolves to
+   `doc_to_video_channel.studio.util` here and to `doc_to_video_tutor.studio.util`
+   there. `plan.py`, `validate.py`, `video.py` and `speech.py` carry 8, 8, 7 and 3
+   relative imports respectively, so this was worth checking before moving
+   anything.
+
+**Three tests hold it, and one of them has teeth.** The package marker contains no
+`import`, no `from` and no `__all__`, asserted on the **AST** — the first version
+searched the raw source for the string `"import "` and failed on this section's own
+docstring, which contains the phrase "one import path". A test that cannot tell a
+word from the code using it is not a test. Every vendored module has exactly one
+import path, and the flat path raises `ModuleNotFoundError`. Verified by appending
+`from .util import load_documents` to the marker and watching the test fail.
+
+**What did not change.** V1's three modules are byte-identical to `VENDOR_REF`
+except for the three recorded edits (`A5` and two annotations), and the manifest
+hashes are unaffected — a move is not a modification.
+
 ## 13. Acceptance criteria
 
 1. `doc-to-video-channel --help` prints usage listing all five declared verbs and
@@ -2036,9 +2086,13 @@ the fabrication's trigger tokens, **the golden check cannot witness AC#19**
 
 ### 14.7 Drop the `studio/__init__.py` façade — RULED: moot, and the caveat is closed
 
-**There is no façade to drop.** §5 creates **no** `studio/` subpackage: its 16
-modules sit at the package root, and the two façades are **excluded by §5.1**
-(rows 17–19), not deleted by a decision. §5.1 row 18 records why — the re-exports
+**There is no façade to re-export from.** **CORRECTED in §12.7: the 16 modules do
+NOT sit at the package root.** They live in `doc_to_video_channel/studio/`. What
+stands is the part this paragraph was actually about — the two façades are
+excluded by §5.1 (rows 17-19), and our `studio/__init__.py` re-exports nothing, so
+there is still exactly one import path per module. The leap from *"the re-export
+façade is dropped"* to *"therefore there is no directory"* was the error, and it
+was mine: two unrelated decisions treated as one. §5.1 row 18 records why — the re-exports
 are 5 of the 39 and each carries `# noqa: F401`, a suppression that would hide a
 *second* binding of exactly the constants §4 exists to reach.
 
