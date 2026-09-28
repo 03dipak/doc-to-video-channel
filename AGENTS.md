@@ -106,19 +106,38 @@ second failure, and it is worthless if it starts relaying the others' findings.
 ## Facts that will bite you
 
 - **Phase 0 is landed, so the gate is green and has teeth — but the package is
-  still nearly empty.** The gate is this project's own:
-  `.venv/bin/ruff check src tests && .venv/bin/mypy src && .venv/bin/pytest`,
-  measured 2026-09-28 as **exit 0, 12 tests passed, 100% of 19 statements**. The
-  19 statements are a real population, not a placeholder: `src/doc_to_video_channel/__init__.py`
-  is an argument parser that declares five verbs and **builds none of them**, so
-  every verb exits 3. *The bullet this replaces said `ruff` exited 1 and `pytest`
-  collected nothing — that was true when written and false within the hour. A
-  status bullet in this file is a measurement, not a setting; re-measure before
-  citing it.*
-- **A green gate is not a working CLI.** All five verbs are declared and all five
-  exit 3. `build`, `review`, `tts-check`, `verify` and `render` do nothing yet, and
-  the pipeline they will call is not vendored until V1–V5. Do not read "Phase 0
-  complete" as "the tool runs".
+    still nearly empty.** The gate is this project's own, and it is **four**
+    commands, measured 2026-09-28 as exit 0:
+    `.venv/bin/ruff check src tests && .venv/bin/mypy src && .venv/bin/pytest -q &&`
+    `.venv/bin/python -m coverage report --include="src/doc_to_video_channel/*.py" --fail-under=95`
+
+    **The fourth step is not optional, and leaving it out was a real defect.** Two
+    floors need two commands: `pyproject`'s `fail_under = 60` is the *whole-tree*
+    backstop and covers `pytest --cov`, while **95 over this package's own code**
+    cannot live in the same file without an `include` that would also hide `studio/`
+    from the report -- the mistake already made and corrected once here. So the
+    scoped floor lives in a fourth command, and for one commit after V7 it was
+    **written only in a comment and enforced by nothing**: `pyproject` had no
+    `include`, the gate was green, and this package's own code sat at **87%** against
+    a floor of 95. A floor written in prose is a comment. Verified with teeth: a
+    module-sized untested block here takes it to 88% and the fourth step exits 2.
+
+    **One verb is built, not zero.** `render STORYBOARD.json` projects a storyboard
+    and renders its slides, **refusing** an unshippable lesson at exit 4 -- 1 of 8
+    scenes is anchored on the real storyboard, and a build that skipped the check
+    would emit a clean-looking lesson built on 7 unsourced claims. `build`, `review`,
+    `tts-check` and `verify` still exit 3 rather than pretending. The figure this
+    bullet replaced -- 19 statements, all five verbs exiting 3 -- was a real
+    measurement when taken and is now false on both counts: this package's own code
+    is 726 statements at 96%, and `render` does not exit 3. *An earlier version of
+    this bullet said `ruff` exited 1 and `pytest` collected nothing -- true when
+    written, false within the hour. A status bullet in this file is a measurement,
+    not a setting; re-measure before citing it.*
+- **A green gate is not a working CLI.** Four verbs are declared and still exit 3:
+  `build`, `review`, `tts-check` and `verify`. `render` is built and produces PNG
+  frames from a storyboard (refusing an unshippable lesson at exit 4), but it does
+  not produce the finished video, and the pipeline it will ride on is not vendored
+  until V1–V5. Do not read "the gate is green" as "the tool runs end to end".
 - **`.venv` is a real venv, and it cannot import the engine.** There is no
   dependency on `doc-to-video-tutor` — `uv.lock` holds 0 references, and that is
   deliberate (owner ruling 2026-09-28, `docs/LLD-tutorial-lane.md` §14.1). The
