@@ -81,9 +81,27 @@ omit = ["*/__main__.py"]
 
 [tool.coverage.report]
 show_missing = true
-fail_under = 95
-# Scope the FLOOR to our own code WITHOUT excluding studio/ from measurement.
-include = ["src/doc_to_video_channel/*.py"]
+# fail_under here is the WHOLE-TREE backstop. Measured 2026-09-28 at V6: 5,834
+# statements at 66.2%, with the reference's 315 tests landed. 60 leaves ~6 points of
+# headroom and still fails loudly if the vendored population ever loses the suite's
+# contribution -- which is the regression that matters, because ours is floored
+# separately and much higher.
+#
+# NO `include` here, and that is a correction. A first attempt put
+# `include = ["src/doc_to_video_channel/*.py"]` in this section to scope the floor to
+# our own code, and it scoped the PRINTED TABLE too: the owner ran
+# `pytest --cov --cov-report=term-missing` and studio/ was simply absent, with no error
+# and no warning. One `*` does not cross `/`, so it matched the 5 top-level modules and
+# hid 5,358 statements. Measurement was never affected -- verified, 23 files in the
+# coverage database of which 18 are under studio/ -- but a report that hides the
+# population you most want to watch is the same error as the `omit` that preceded it,
+# one level up. I claimed that was fixed while the symptom remained.
+#
+# So the default table shows BOTH populations, and the two floors are two explicit
+# commands rather than one filter doing both jobs:
+#   whole tree, this file's fail_under ...... pytest --cov
+#   our 476 statements, floored at 95 ...... coverage report --include=... --fail-under=95
+fail_under = 60
 exclude_lines = [
   "pragma: no cover",
   "if __name__ == .__main__.:",

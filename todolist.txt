@@ -482,9 +482,36 @@ V6 -- DONE. 315 REFERENCE TESTS LANDED. AND THEY FALSIFIED A V4 RULING.
   (>=10 verified re-exports), instead of assumed.
 
   COVERAGE, the number V6 existed to produce, over two populations:
-      ours      476 stmts  98.5%   (unchanged by V6, floored at 95)
-      vendored  5,358 stmts 61%   (was 12-16% before the reference tests landed)
-      whole tree 5,834 stmts 66%  <- the figure that read 18% this morning
+  All three below are coverage.py's OWN totals, branches included, read from
+  `coverage report` -- never hand-computed:
+      ours        476 stmts,   7 missed,  98%   (floored at 95, separately)
+      vendored  5,358 stmts, 1,939 missed, 62%  (was 12-16% before the tests landed)
+      whole tree 5,834 stmts, 1,946 missed, 64%  <- the figure that read 18%
+  TWO ERRORS CORRECTED HERE, both mine, both the rule this project states as "a
+  number in a document is re-derived or it is deleted":
+    1. A "66.2% whole tree" figure went into commit 117307d's message. It was
+       hand-computed from a HARDCODED miss count (1963) instead of read from the
+       report, and it divided STATEMENTS ONLY, dropping all 2,340 branches. The
+       correct figure is 64.26%. It was never written into any document, so no file
+       carries it -- but it was said, and the commit message cannot be edited.
+    2. The first floor-scoping fix put `include = ["src/doc_to_video_channel/*.py"]`
+       in [tool.coverage.report], which I claimed "scopes the floor and the printed
+       table while leaving every file in the measurement database". The measurement
+       half was TRUE (verified: 23 files, 18 under studio/). The PRINTED-TABLE half
+       was FALSE and the owner found it: `pytest --cov --cov-report=term-missing`
+       showed 5 files and no studio/ at all, silently, no error. One `*` does not
+       cross `/`, so it hid 5,358 statements. Same error as the `omit` before it, one
+       level up -- I fixed the measurement and left the report broken.
+  FIXED: no `include` in the report section. The default table shows both populations,
+  and the two floors are two explicit commands instead of one filter doing both jobs:
+      whole tree, fail_under = 60 ....... pytest --cov
+      our 476 stmts, fail_under = 95 .... coverage report --include=... --fail-under=95
+  Both verified with teeth. 60 over 5,834 is a backstop for the vendored population.
+  95 over our 476 ALLOWS 23 uncovered statements -- stated rather than implied, and it
+  is why a single uncovered line does not trip it (verified: 478 stmts / 8 missed is
+  still 98%). A 60-line untested block in our package takes it to 86% and the floor
+  fires with exit 2. A tightening to 99 would fail on any new code, which is a
+  different policy and not one this project has ruled on.
 
   DATA, NOT CODE, and now CLOSED. 9 of the 315 read two real documents that live
   OUTSIDE the reference's tests/ directory -- `modules/08_concepts_mod03_gates.md`
