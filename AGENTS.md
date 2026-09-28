@@ -105,14 +105,25 @@ second failure, and it is worthless if it starts relaying the others' findings.
 
 ## Facts that will bite you
 
-- **There is no code here yet, and no test suite.** The gate lives in the engine:
-  `cd ../doc-to-video-tutor && uv run ruff check src tests && uv run mypy src &&
-  uv run pytest` (baseline 315 tests). `uv run *` is **denied** in this folder —
-  there is no `pyproject.toml` here, so the grant would be a dead entry falling
-  through to `"*": "ask"` on every call.
-- **`.venv` is a symlink** to the engine's interpreter. It is the only one that
-  can `import doc_to_video_tutor`; the system `python3` cannot, and fails with a
-  misleading `ModuleNotFoundError`. Use `.venv/bin/python`, never bare `python3`.
+- **There is no code here yet.** `src/doc_to_video_channel/__init__.py` is one
+  66-byte stub, there is no `tests/` directory, and the gate is this project's own:
+  `.venv/bin/ruff check src tests && .venv/bin/mypy src && .venv/bin/pytest`.
+  `ruff check src tests` **currently exits 1** with `E902 No such file or
+  directory` because `tests/` does not exist, and `pytest` reports `no tests
+  collected` — so `AC#2` fails today and Phase 0 has three items, not two.
+- **`.venv` is a real venv, and it cannot import the engine.** There is no
+  dependency on `doc-to-video-tutor` — `uv.lock` holds 0 references, and that is
+  deliberate (owner ruling 2026-09-28, `docs/LLD-tutorial-lane.md` §14.1). The
+  earlier version of this bullet said `.venv` was a symlink to the engine's
+  interpreter and that it was the only one that could `import doc_to_video_tutor`;
+  both halves were false and the second produced exactly the misleading
+  `ModuleNotFoundError` this file warns about. **The instruction stands: use
+  `.venv/bin/python`, never bare `python3`** — the engine's own tests, when you
+  need them, run from `../doc-to-video-tutor/.venv/bin/`.
+- **`VENDOR_REF` does not exist yet.** `docs/LLD-tutorial-lane.md` §5.4 routes V-1
+  against "the baseline tree at `VENDOR_REF`", and the constant is **created by
+  V0** — it has 0 occurrences in the baseline. Until V0 lands, the reference is
+  literally `a7d63e0` (`git -C ../doc-to-video-tutor rev-parse --short HEAD`).
 - **Anchors into `../doc-to-video-tutor` are a moving target.** That tree has six
   commits of churn since the last time these numbers were verified. Re-resolve
   before citing.

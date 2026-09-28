@@ -464,6 +464,17 @@ excluded path** (§8.4).
 the reference commit the copy came from, and it is also written into
 `*.verify.json` (§6.3) so a shipped artifact can name its own origin.
 
+**`VENDOR_REF` is created at V0; it does not exist yet.** Measured 2026-09-28: **0
+occurrences** across the whole baseline repository — `src/`, `tests/`, `docs/`,
+`pyproject.toml` — while this document mentions it 15 times, and a real
+`*.verify.json` carries `counts, duration, gates, layout, media, plan_path,
+plan_sha256, schema_version, target_minutes, verdict` with **no** `vendor_ref`,
+`ref` or `commit`. So v009's three present-tense claims above were **forward
+references to components V0 has not created, written as descriptions of things
+that exist** — which is `DOCS.md` rule 8 inverted. Until V0 lands, the ref is
+literally **`a7d63e0`** (`git -C ../doc-to-video-tutor rev-parse --short HEAD`), and
+§5.4's V-1 step uses that value.
+
 **This is what makes §4's central rule mean something after vendoring.** As
 written, *"a field's default is what the engine does today"* is a **wall-clock**
 reference in a document whose own rule is that stored claims rot — and after
@@ -503,13 +514,18 @@ after the whole copy, and never before. **So a spike comes first.**
 
 | step | unit | gate before the next step lands |
 |---|---|---|
-| **V-1** | **the spike.** Render **one** `uv --version` scene end to end. No seam, no profile, no gate. **Throwaway by design — its output is evidence, not a deliverable.** It runs against the **baseline tree at `VENDOR_REF`**, which §5.5 makes legitimate, because the channel's own tree is one 66-byte file and has nothing to render | **measurable forms, not adjectives:** minimum caption glyph height at 720p; **disjoint** bounding boxes for the caption and the command panel; `ebur128` within the `A18` target ± a stated tolerance; the narration transcript contains the tool name **and** a matching `WordBoundary` token. "Legible", "intelligible" and "pronounced correctly" have no instrument and cannot fail — which is why §12's row for this states the instruments |
+| **V-1** | **the spike.** Render the **minimum legal plan — 5 scenes**, one of them the `uv --version` scene. *"One scene" is unreachable and the blocker is the baseline's own gate: `MIN_SCENES`/`TARGET_MAX_SCENES` are **5/8** and `_scene_count_problem` refuses fewer in **both** branches; and a 1-scene plan yields **2** TTS clips, so `assemble_video`'s `zip(strict=True)` needs 2 slide groups anyway.* No seam, no profile, no gate. **Throwaway by design — its output is evidence, not a deliverable.** It runs against the **baseline tree at `VENDOR_REF`**, which §5.5 makes legitimate, because the channel's own tree is one 66-byte file and has nothing to render. **`VENDOR_REF` is `a7d63e0` today** — the constant is created at V0 (§5.3). **It calls the renderer API directly, not the CLI:** `render`/`build` run `_render_blocking_problems`, and a spike with *no gate* must not go through it. Measured: through the CLI a 5-scene plan passes `verify` (exit 0) and is then **BLOCKED** by `render`; the direct route — `render_slide`, `build_tts_script`, `synth_scenes`, `assemble_video` — produces media, is **model-free**, and needs no endpoint. **It must call `video._write_webvtt` itself:** that function is reached only from `_render_media`, which is behind the gate the spike skips, and without it the artefact carries **no `.vtt` at all** | **measurable forms, not adjectives:** minimum caption glyph height at 720p; **disjoint** bounding boxes for the caption and the command panel; `ebur128` within the `A18` target ± a stated tolerance; the narration transcript contains the tool name **and** a matching `WordBoundary` token. "Legible", "intelligible" and "pronounced correctly" have no instrument and cannot fail — which is why §12's row for this states the instruments |
 | **V0** | the §5.1 table + `vendor_manifest.json` + the tree's **first commit** | `uv sync` resolves from a fresh clone; the manifest's hashes match the tree |
-| **V1** | `util.py` + `text.py` + `config.py` — **955 lines** | the three zero-internal-import modules import and their tests pass. `config.py` is in this step because it has **zero** internal imports too (v007 said "the only two" and was wrong), which also gives `VENDOR_REF` a file that exists at V1 |
+| **V1** | `util.py` + `text.py` + `config.py` — **955 lines** | the three zero-internal-import modules import and their tests pass. `config.py` is in this step because it has **zero** internal imports too (v007 said "the only two" and was wrong), which also gives `VENDOR_REF` a file that exists at V1. **`AC#17`(a) is a V1
+criterion, not a reader criterion:** `_truncate_on_boundary` is a `str → str`
+function in this step's `util.py`, and its two properties — the cut never ends
+mid-token, and the cut uses at least half the window it was given — are falsifiable
+on a synthetic source today. `AC#17`(b), the corpus figure, belongs to the step
+that carries `A5` |
 | **V2** | `topics.py`, `schema.py` — 211 lines | the two Pydantic models validate; `AC#6`'s Devanagari case reaches the validator |
 | **V3** | `BRAND_NAME` / `BRAND_FOOTER` — **2 lines** | one scene rendered, frames sampled, old brand absent and new brand present. `PACKAGE_NAME` renders on **100% of runtime frames**, so copying it verbatim is *correct* per §5.5 and invisible in a 17k-line diff — which is why it is its own commit |
 | **V4** | `plan.py` — 2,505 lines, alone | **carries §5.6's harness in the same commit**, not after it: the harness's purpose is to run `plan_lesson`, and `plan_lesson` arrives *with* V4, so gating V4 on the harness is circular |
-| **V5** | the remaining **10** modules (`cli`, `duration`, `llm`, `narration`, `pptx`, `slides`, `speech`, `validate`, `video`, `voice` — 9,326 lines) | all 315 vendored tests pass; the audio gate and caption gate are reachable. *v008 said 8; 16 − V1(3) − V2(2) − V4(1) = 10* |
+| **V5** | the remaining **10** modules (`cli`, `duration`, `llm`, `narration`, `pptx`, `slides`, `speech`, `validate`, `video`, `voice` — 9,326 lines) | all 315 vendored tests pass; the audio gate and caption gate are reachable; **`write_media` exists and both `_render_media` call sites route through it** — the media chokepoint §8.3 creates here, and `AC#26` is a V5 criterion because the component it gates does not exist before this step. *v008 said 8; 16 − V1(3) − V2(2) − V4(1) = 10* |
 | **V6** | the 7 test files, import-rename only | the collection report shows the expected count **and** the run count |
 | **V7** | the seam (Phase 1) | the behavioural differential, the ownership audit, the two renderers × every `SectionKind` |
 
@@ -885,7 +901,7 @@ The fixture bit is **carried on the loaded document** (§6.1), set at load time,
 a later stage that rebuilds its inputs from paths cannot drop it. A flag that
 lives only in `argv` is a flag some stage will forget.
 
-### 8.2 The stamp must reach the media, and the release step must read it
+### 8.2 The stamp must reach the media, and the media writer must read it
 
 The stamp reaches the plan and the release report. **It does not reach the `.mp4`
 or the `_audio/` directory** — so the artefact that actually gets published is
@@ -906,11 +922,38 @@ writing the sentence — which is the defect `FR-028`'s own cell names: *"a
 documented rule this repo never enforced is the exact defect class of
 CHECK-CMD-001"*.
 
-**So the component is named here rather than left to a sentence:** the refusal
-lives in a **`publish` subcommand**, which does not exist and is **created as part
-of this work**. `AC#26` is not satisfied until it does. Until then the clause is a
-requirement with no implementation location, and §13.1's condition 2 — every
-blocker has an owner, a location and a failure behaviour — is not met for it.
+**RULED 2026-09-28: the control is the media writer, and `publish` is withdrawn
+rather than deferred.** A verb nobody is obliged to run gates nothing. Measured:
+`_render_media` has exactly **two** call sites — the `build` branch and the
+`render` branch — so a gate living in a third, separately invoked verb gates
+**neither**, which is the defect `FR-028`'s own cell names. And a verb whose only
+content is "re-read a manifest and print a verdict" is `verify` under a second
+name; `verify` already binds its verdict to the plan bytes via
+`check_audit_binding`. One verb, one job.
+
+| | |
+|---|---|
+| **location** | `write_media` — the single media chokepoint §8.3 creates at **V5**. Both `_render_media` call sites route through it, so **no path writes media that skips it** |
+| **input** | the media manifest being written, carrying `fixture: bool` (from `AdapterResult`, §6.1) and `vendor_ref` (§6.3) |
+| **output** | on success: the artefact, its manifest, and the writer's own audit row. On refusal: **no file, no partial file, and a refusal record naming the field and the value** |
+| **failure behaviour** | `write_media` **raises**; the caller converts that to **`SystemExit(2)`** — distinct from the **`1`** already meaning *"gated"*, so a wrapper can tell *refused* from *broken* without parsing text |
+| **refuses** | exactly one thing today: a `fixture: true` bit |
+
+**Why V5 and not Phase 0 — it is impossible there, not merely undesirable.**
+`AC#26` needs a media writer (§8.3 measures **none**), the fixture bit on
+`AdapterResult` (§6.1), and `vendor_ref` in a manifest (§6.3). None of the three
+exists before V5, so its wrong input **cannot be constructed**, and a gate whose
+falsifier cannot be built cannot be built early. §12's row makes the same point
+from the other side: the wrong input is a manifest differing only in the bit, so the
+check cannot pass on a missing component.
+
+**`REQUIREMENTS.md` §4 is referenced, not enforced.** Three of its seven checks
+(*no secret visible in any frame*, *a legible thumbnail*, *the egress disclosure*)
+are readings no command can make without first settling what "visible" and
+"legible" mean. Mechanising them changes seven product checks, and that is **the
+owner's decision**. §4 keeps all seven; what changes is one added line recording
+which of them the machine now covers, so a stamp and a reading stop implying the
+same kind of control.
 
 ### 8.3 One egress chokepoint, and a closed inventory of egress
 
@@ -1100,7 +1143,7 @@ fabricated date pass a 315-test suite.
 | **`A41` allow-list** | a build whose source path is excluded | must fail **at the door**, before the format gate's message can hide it |
 | **content-hash blocklist** | a source file whose md5 is on the 18-hash list, at an **unexcluded** path | must be refused. The path allow-list alone passes this — that is the wrong-input case |
 | **the fixture bit** | a build with `--test-fixture` on an excluded source | the **load** succeeds; any model call, any TTS call, and any media write must **refuse**. The wrong input is a build that reaches the provider |
-| **the stamp is load-bearing** | a media artefact whose manifest carries `fixture: true` | the **release step must refuse it.** A stamp nothing reads satisfies the previous row |
+| **the stamp is load-bearing** | a media artefact whose manifest carries `fixture: true` | **`write_media` must refuse it**, and the same manifest with the bit false must be written. *v009's witness said "the release step", which does not exist; and the wrong input is a manifest differing **only** in the bit, so the check cannot pass on a missing component* |
 | **the egress inventory** | the §8.3 table | every egress site must appear, and a chokepoint reached with the fixture bit set must refuse |
 | **`A6`** | 6 of 6 scenes receive a `source_chunk` on a prose source | a headingless source is the input; a 1-of-6 result is the failure |
 | **`A15`** | unsupported extension refused in one line, before any model call | the valid case must reach the adapter; and an **excluded path with a valid extension** must produce the *rights* message, not the format message |
@@ -1111,7 +1154,9 @@ fabricated date pass a 315-test suite.
 | **no filler under COMMAND CONTEXT** | every rendered command panel in video one | a contentless sentence (*"Use this documented command in the lesson workflow"*) must fail. These fire on the first video, which is why the criterion is a release gate and not a backlog item |
 | **practical-step completeness** | every practical scene carries purpose, action, expected result, recovery | a scene with a command and no **recovery** must fail. A valid scene is not "a command on screen" |
 | **environment applicability** | each command scene's manifest | a command valid for `bash` rendered in a `target_os: windows` manifest must fail |
-| **the V-1 spike** | one rendered `uv --version` scene, **measured four ways** (§5.4) | a caption under the stated minimum glyph height must **fail**; a caption bbox intersecting the command panel's must **fail**; an `ebur128` result outside the target ± tolerance must **fail**; a narration transcript missing the tool name, or missing a matching `WordBoundary` token, must **fail**. *v008's witness cell was a verbatim copy of its approach cell — the four adjectives had no instrument and could not fail, and this is §13.1's condition 6* |
+| **the V-1 spike** | one rendered scene, **measured four ways** (§5.4) | an `ebur128` result outside the target ± a stated tolerance must **fail**; a narration transcript missing the tool name, or missing a matching `WordBoundary` token, must **fail**. **Instruments 1 and 2 are UNAVAILABLE and are not yet rewritten** — see the note under §5.4. *v008's witness cell was a verbatim copy of its approach cell, and the four adjectives had no instrument; two of the four replacements also have none* |
+| **caption text-fit** *(replaces instrument 1, pending the owner's caption decision)* | every cue in the produced `.vtt` against `_VTT_CUE_WORDS` and a declared on-screen line width at 1280 px | a cue over the word ceiling, or over the declared line width, must **fail**. *Measured headroom: the max cue across 807 cues in 19 files is 8 words, so this can still fail* |
+| **panel geometry** *(replaces instrument 2, pending the same decision)* | two boxes `render_slide` already computes, compared in the auditor | an overlapping pair must **fail**. *The command panel is measurable — x 50–1230, y 292–358 — and matches the renderer's own geometry; `LAYOUT_NOTES` is the existing note channel, and a note is not a refusal, so if this must block it needs a new refusal rather than a note* |
 | **brand string** | one rendered scene, frames sampled | the old brand string is absent and the new one present. `PACKAGE_NAME` renders on 100% of frames, and V3 is a 2-line change |
 | **test vendoring** | the collection report | it shows the expected count **and** the run count. Tests that are copied but silently skipped are invisible otherwise |
 | **static** | `ruff check src tests` and `mypy src` clean | configured in Phase 0, so this is a real check and not `All checks passed!` over an empty tree |
@@ -1127,6 +1172,42 @@ a taxonomy *equality* check and a post-pass label audit are both subsumed by the
 
 **The harness is a deliverable, not a footnote** — and §5.6 now says precisely what
 it must prove, which is not what v007 said it did.
+
+**On the two unavailable V-1 instruments, and why they are unavailable.** Measured
+2026-09-28 against the baseline: a produced MP4 carries **2 streams**
+(`h264,video` + `mp3,audio`) and **no subtitle track**; **0** files in `src/` contain
+burn-in, subtitle-mux, ASS/SSA or `drawtext`; and **0 of 14** produced `.vtt` files
+contain a `::cue` or `STYLE` block, so no font size is declared anywhere. A caption
+that is **not on the canvas has no glyph height and no bounding box** — the height
+is the *player's* property. So instruments 1 and 2, as v009 worded them, compare a
+measurable thing to an unmeasurable one and **cannot fail**, and leaving them under
+`AC#30` is the defect round 7 caught in the previous wording.
+
+**This is the owner's decision, not an implementer's**, and it is a channel
+question: *should a tutorial video carry burned-in captions?*
+
+- **Burn the caption in.** Both instruments become real pixel measurements against a
+  frame that contains the glyphs, and they are the checks a viewer would recognise.
+  Cost: a new renderer stage, crossing **both** renderers.
+- **Redefine both as properties that exist** — caption text-fit against the `.vtt`
+  ceiling, and panel geometry between two boxes the renderer already computes. These
+  are computable today and are the two rows §12 now carries provisionally.
+
+Both rows are marked *pending the owner's caption decision* and **neither is
+`AC#30`'s gate today**: `AC#30` is satisfied on instruments 3 and 4 plus whatever the
+caption decision yields.
+
+**One measured correction to the loudness instrument, and it is a real finding.**
+`A18` gates the **pre-mux clip**, not the published file. Measured: per clip
+pre-mux **−16.1..−16.0 LUFS / −1.5 dBTP**; the assembled MP4 **−16.5 LUFS /
+−5.2 dBTP**; the baseline's best four delivered MP4s **−16.6..−16.7 LUFS**, against
+`LOUDNESS_TARGET = -16.0` and `LOUDNESS_TP = -1.5` (both env-overridable). So the
+**delivered** file differs from the gate's reading point by **0.5–0.7 LU and
+3.7 dBTP**, and no tolerance is stated anywhere in this document. If the published
+file is what ships, the gate's reading point should be the published file;
+otherwise the band must be wide enough to absorb the mux, and **a wide band is a
+weaker gate** — the same shape as `AC#26`, a control on the wrong side of the
+boundary. *Stated as a finding, not resolved here.*
 
 ## 13. Acceptance criteria
 
@@ -1178,11 +1259,33 @@ it must prove, which is not what v007 said it did.
     **structural** (`dataclasses.fields`), not a grep, because a grep cannot fail
     here. Currently true over a 66-byte file and therefore **vacuous until
     `profile.py` exists**; it becomes falsifiable at V7.
-17. **The adapter never truncates silently.** A golden check over the corpus pins
-    the **post-`_truncate_on_boundary`** admitted count, not the document-level
-    count. *How far apart the two are is not yet measurable* — measuring it needs
-    the reader `A5` has not built, and `load_documents` raises on a `.docx` — so
-    this criterion is what will quantify it.
+17. **The adapter never truncates silently, and never truncates in a way that
+    wastes the window it was given.** Two properties, two owners, two witnesses.
+
+    **(a) the boundary property — a V1 criterion, no reader required.**
+    `_truncate_on_boundary` lives in `util.py` and operates on a `str`: the joined
+    text, *after* `load_documents` has wrapped each file in `<doc name='…'>`. It
+    **never sees a `.docx`**, so a synthetic oversized source exercises it exactly.
+    The wrong input is a source built to break it: a body with no line break and no
+    space, a body of one unbroken token, and a source whose only section heading
+    falls just past the half-window mark. *Measured over 7 such sources: 0 split a
+    token.* Assert the cut never ends mid-token **and** that
+    `chars_read / read_window >= 0.5` — the invariant the docstring states and
+    never asserts.
+
+    **The second clause is the one with teeth.** Measured: a boundary-free body of
+    40,038 characters is cut to **30 characters — 0.25% of a 12,000-char window** —
+    because the last space in the window is the one inside the `<doc name='…'>`
+    wrapper header, so the whole body is discarded while the window sits unused. A
+    **1,334.6x** drop, on demand, from a synthetic source. The 18-document corpus
+    never reaches it: it uses 99.9–100% of the window.
+
+    **(b) the corpus figure — the reader's job, and the reason `AC#17` exists.**
+    A golden check over the 18-document corpus pins the
+    **post-`_truncate_on_boundary`** admitted count, not the document-level count,
+    because a golden file storing the document-level number passes while the
+    pipeline's number is wrong. **Blocked on `A5`**, and checkable at the step that
+    carries it. What is measurable today, without the reader, is in §14.6.
 18. **The drop column is enforced, over a stated population.** Row 17's symbols
     **excluding `main`** (6: `TUTOR_PROMPT`, `generate_lesson`, `text_to_audio`,
     `_split_sections`, `_make_slide_image`, `create_video`), row 18's **5**
@@ -1223,13 +1326,15 @@ it must prove, which is not what v007 said it did.
     refused.
 25. **The fixture bit refuses every egress.** A `--test-fixture` build loads and
     parses, and any model call, any TTS call, and any media write **refuse**.
-26. **The fixture stamp is load-bearing.** It reaches the media's own manifest, and
-    **the `publish` subcommand refuses** a non-publishable artefact. **That
-    subcommand does not exist and is created as part of this work** (§8.2); the
-    CLI has exactly five today (`build`, `review`, `tts`, `verify`, `render`) and
-    `REQUIREMENTS.md` §4's "release gate" is seven *human* checks. **This criterion
-    is not satisfied until the component exists** — a stamp nothing reads satisfies
-    nothing, and so does a sentence about a step that does not exist.
+26. **The fixture stamp is load-bearing, and the media writer is what reads it.**
+    The bit reaches the media's own manifest alongside `vendor_ref` (§6.3), and
+    `write_media` — the single chokepoint §8.3 creates at **V5**, reached by
+    **both** `_render_media` call sites — **refuses** a `fixture: true` artefact and
+    exits **2**, distinct from the **1** that already means "gated". *Witness: a
+    manifest carrying `fixture: true` must be refused, and the same manifest with
+    the bit false must be written.* `publish` as a subcommand was named in v008 and
+    v009 and is **withdrawn** — it would gate neither `build` nor `render`.
+    `REQUIREMENTS.md` §4's seven human checks are **referenced, not enforced**.
 27. **A content-hash blocklist refuses an unexcluded copy.** A source whose md5 is
     on the 18-hash list, at a path the allow-list does not exclude, is refused —
     which is the case a path-only allow-list passes.
@@ -1474,14 +1579,40 @@ check is required, and **it must pin the post-`_truncate_on_boundary` admitted
 count**, not the document-level count. A golden file storing the
 document-level number passes while the pipeline's number is wrong. **AC#17.**
 
-**How far apart the two counts are, is not yet measurable and is therefore not
-stated.** Two earlier drafts of this line published a ratio; both were wrong, and
-the reason is instructive: *measuring the admitted count requires the reader that
-`A5` has not built yet.* `load_documents` cannot open a `.docx` at all — it raises
-`UnicodeDecodeError`, which is the defect `A5` exists to fix. So the divergence is
-real and unquantified, and `AC#17` is the criterion that will quantify it. What *is*
-measurable without the reader: all 18 files carry **0 tables** and **0** of the
-`json_snippet` trigger tokens.
+**How far apart the two counts are: measured 2026-09-28, and the reason v007 and
+v008 gave for not measuring it was wrong.** Both said the ratio was unmeasurable
+*because the reader `A5` has not built*. It is not: `_truncate_on_boundary` takes a
+`str` — the joined text, after `load_documents` has wrapped each file in
+`<doc name='…'>` — and **never sees a `.docx`**, so the corpus is measurable today
+with `python-docx` (already a declared dependency) and the vendored truncation
+function, with no reader built.
+
+Measured over the 18 unique documents — **all 18 truncate**:
+
+| | |
+|---|---|
+| per document, `chars_total / chars_read` | **9.23 – 13.83x** (population: 18 documents) |
+| aggregate, `sum(chars_total) / sum(chars_read)` | **2,425,201 / 215,924 = 11.23x** (population: the same 18 **summed** — a different population from the range, not a second reading of it) |
+| share of characters dropped | **89.2 – 92.8%** |
+| read window used | **11,990 – 11,999 of 12,000** |
+
+**The earlier drafts conflated two measurements: 90 is the percentage dropped, 11.2
+is the ratio.** v007's *"up to 90x"* is out of range by about 6.5x — a percentage
+published as a multiplier. v008's *"9.5x" **sits inside the measured range** and is
+a real value for a real document; what was wrong with it was that it named no
+population, so **it is not withdrawn.** v009's claim that *"both earlier drafts were
+wrong"* was **half wrong**, and saying both were is the error this paragraph exists
+to avoid.
+
+**What remains unmeasurable is narrower: the *pipeline's* admitted count over the
+corpus.** `load_documents` cannot open a `.docx` — it raises `UnicodeDecodeError` —
+so what is pinned above is what the truncation *function* does to these documents,
+not what a `load_documents` call *reports*. `AC#17`(b) closes that gap.
+
+**Two facts that kill competing ratios rather than qualifying this one:** all 18
+files carry **0 tables** and **0** header/footer parts, so paragraph extraction is
+*exact* for this corpus rather than a lower bound; and **0 of the 18 carry a single
+`##` heading**, so a *concept*-level ratio is undefined here.
 
 **Out of published artifacts — and now enforced rather than merely true.** Neither
 `pyproject.toml` has a `[tool.uv.build*]` section, so the default `src/` layout
@@ -1582,7 +1713,7 @@ were applied together so the document is not reviewed twice for the same edit.
   so a third party's course text could reach a provider with only a stamp in a
   report a human may not read. `NFR-006` is recorded **VIOLATED**; this was an
   unmonitored path into it.
-- **The stamp must reach the media and the release step must read it** (§8.2).
+- **The stamp must reach the media, and the media writer must read it** (§8.2).
   It currently reaches neither, so the artefact that gets published is unstamped and
   the stamp is a record with no control.
 - **A closed egress inventory with one chokepoint per egress type** (§8.3). §5.1
