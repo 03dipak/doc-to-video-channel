@@ -1321,6 +1321,57 @@ left implicit:
 Both targets stay env-overridable, which is why the *configured* value is not
 sufficient evidence and the *measured* one is quoted above.
 
+### 12.3 Enrichment when a step is missing: coverage, not invention
+
+Asked directly — *if the source document does not contain a step, what does
+enrichment do?* — and the baseline already has the right answer, written down in
+`validate.py`'s own docstring:
+
+> "The enrichment lever this exposes is **coverage, not invention**: on
+> `mod03_gates_v012_013` four numbered concepts were used by no scene, and the
+> only coverage check in the pipeline — `_topic_coverage_problem` — is a vocabulary
+> test that cannot see them, because a skipped concept's words still appear in
+> passing elsewhere."
+
+**RULED, and it is three parts.**
+
+**1. Enrichment never invents the missing step.** This is not a preference, it is
+the baseline's stated position and `AC#19`'s existing rule ("no enrichment
+fabricates a value on screen", all eight write sites named). A fabricated step
+would be the worst possible outcome for this channel: it is on screen, it is
+spoken by the narration, and it carries a `source_refs` stamp pointing at
+something that does not say it.
+
+**2. The mechanism is detection.** `_unclaimed_source_sections` reports the
+document's sections that no scene *claimed*, judged by the assignment's own
+record. The choice is **claim-based with no token-overlap fallback**, and the
+docstring gives the measured reason: overlap cannot tell "mentions the word" from
+"teaches the concept" — concept 4 ("Tolerance and the two units") scores **0.70**
+overlap on the strength of the single word "tolerance", and **0.75** after
+dropping every token appearing in more than half the scenes. An overlap fallback
+would manufacture false negatives on exactly the borderline cases worth seeing.
+
+**3. In this channel it becomes a GATE, and that is the change.** In the baseline
+it is a `soft_finding` — it reports and never refuses, so a document with an
+untaught step can still build and ship. For a channel whose only contract is
+whether the lesson *lands*, coverage that cannot fail is coverage that will not.
+So: **every numbered concept in the source must be claimed by a scene, or the
+build refuses.**
+
+**The consequence, which shapes the source document itself.** The detector
+prefers the document's own numbered concept list and only falls back to
+`_is_coverable_section` over inferred headings when it finds **fewer than 3**
+numbered entries (`plan.py` matches `^\d+[.)]\s`). So the source document **must
+carry a numbered concept list**, and a concept dropped from that list is a
+concept the coverage check *cannot prove was taught* — it becomes invisible rather
+than untaught. `sources/uv-getting-started.md` therefore carries **7** numbered
+concepts against a `MIN_SCENES` of 5 and a `TARGET_MAX_SCENES` of 8: enough
+material for a legal plan, and few enough that every entry can be claimed.
+
+**Reported honestly:** this ruling tightens a gate the baseline left soft, so it
+will find coverage failures the baseline would have shipped. That is the intent,
+and the first build may well fail on it.
+
 ## 13. Acceptance criteria
 
 1. `doc-to-video-channel --help` prints usage listing all five declared verbs and

@@ -61,8 +61,10 @@ F1. A5 DANGLING REFERENCE -- this was a defect I introduced in 4dfe02f.
     hanging on a step with no number.
 
 
-OWNER DELIVERABLE -- THE SOURCE DOCUMENT. Not written by me, and on the
-critical path for everything except V-1.
+SOURCE DOCUMENT -- owner ruled 2026-08-28 that the agent writes it. Written; see
+the entry below. This supersedes the "I am not writing it" position, which was a
+recommendation and the owner decided otherwise. The provenance risk it named is
+handled by the [MEASURED]/[CITED] tagging in the file itself.
 ------------------------------------------------------------------------------
 Measured 2026-08-28: this repo contains ONLY design records -- every .md in it is
 a design document. There is no corpus/ and no sources/ directory, so the channel
@@ -106,6 +108,37 @@ WHAT THE DOCUMENT MUST CONTAIN, for build to accept it:
     at V1, and never advertised in README or --help before then.
   * Passing the A41 source allow-list, and not on the A33 content-hash blocklist.
   * Something that is not the engine's excluded school corpus (A33).
+
+
+ENRICHMENT RULED (mentor 2026-08-28) -- coverage, not invention.
+  If the source document is missing a step, enrichment does NOT write it. The
+  baseline's own docstring says the lever is "coverage, not invention", and
+  AC#19 already forbids fabrication on screen. The mechanism is detection:
+  _unclaimed_source_sections reports sections no scene claimed, judged by the
+  assignment's own record -- claim-based, with NO token-overlap fallback, because
+  overlap cannot tell "mentions the word" from "teaches the concept" (measured:
+  concept 4 scores 0.70 overlap on the single word "tolerance", 0.75 after
+  dropping common tokens).
+  THE CHANGE: in the baseline it is a soft_finding that never refuses, so an
+  untaught step can ship. Here it GATES. Every numbered concept must be claimed or
+  the build refuses. Expect the first build to fail on this -- that is the point.
+  CONSEQUENCE FOR THE SOURCE DOC: it must carry a numbered concept list. The
+  detector prefers it and only falls back to inferred headings when it finds
+  fewer than 3 numbered entries. A concept dropped from the list becomes
+  INVISIBLE rather than untaught. sources/uv-getting-started.md carries 7.
+
+
+THE SOURCE DOCUMENT -- WRITTEN. sources/uv-getting-started.md
+  Every claim tagged [MEASURED] (executed, output quoted verbatim) or [CITED]
+  (from uv's own --help for 0.12.2). Environment of record: uv 0.12.2
+  x86_64-unknown-linux-gnu, system python3 3.14.4, Linux.
+  This is how the provenance concern is satisfied rather than argued: the file is
+  an honest MEASURED ENVIRONMENT REPORT by an agent, and it says so in its own
+  header. A video from it is grounded in that, and must not imply it is vendor
+  documentation. It also states what it does NOT claim -- installers, uv tool
+  install, packaging, workspaces, private indexes -- because a source document
+  that overstates itself teaches a video to overstate itself.
+  7 numbered concepts, against MIN_SCENES=5 and TARGET_MAX_SCENES=8.
 
 
 TODO -- BUILD ORDER (0 of 8 done)
