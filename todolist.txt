@@ -41,11 +41,23 @@ Two things, in this order. Nothing else is blocked.
    harness landed WITH it as the LLD requires. The tree is KNOWINGLY UNIMPORTABLE
    at this step and the gate could not see it. See "V4 -- DONE" below.
 
-9. THEN: V5 -- the remaining 10 modules, 6,821 lines, PLUS write_media, the
-   fixture-refusal chokepoint both render call sites reach. This is where the
-   withdrawn `publish` verb's control now lives, where A43 and A44 land, where the
-   burn-in stage (D1) goes, and where the two-binding harness requirement becomes
-   assertable. Closes AC#25, AC#26, AC#13, AC#18-#24 needs running first.
+9. DONE: V5. 6,821 lines, the tree IMPORTS, plan_lesson is callable, write_media
+   is the working chokepoint, A44 landed, A43 settled. See "V5 -- DONE" below.
+   NOT DONE at V5: the burn-in stage (D1). It is still open.
+
+10. THEN: V6 -- the 7 baseline test files, import-rename only. Closes AC#32: the
+    collection report must show the expected count AND the run count, so a
+    silently skipped file is visible. Expect 74 mypy errors here, which is why the
+    gate is `mypy src` and not `mypy src tests`.
+
+11. THEN: V7 -- the seam: the behavioural differential (which can now actually
+    run, because both _ask_llm_stable bindings are patchable), the ownership audit,
+    and the two renderers x every SectionKind.
+
+12. STILL OPEN, and it needs a decision, not more work: the BURN-IN STAGE (D1).
+    D1 ruled captions are burned in, and that is a new render stage crossing BOTH
+    renderers. It has not been built. AC#30 instruments 1 and 2 are unmeasurable
+    until it lands.
 
 6. NOT BUILT, ON PURPOSE: the files themselves. V0 measures intent; V1-V5 copy.
    A manifest built from the LLD's table would agree with the table by
@@ -112,6 +124,9 @@ WHAT IS TRUE, AND IS ABOUT THE WORK RATHER THAN A MEASUREMENT:
     UNIMPORTABLE at this step -- 4 of plan.py's 8 siblings are V5 -- and
     ignore_missing_imports = true meant the gate could not see it. Now measured by
     tests/test_build_order.py instead.
+  * V5 DONE. 6,821 lines, the tree IMPORTS, plan_lesson callable, write_media is
+    the working egress chokepoint (exit 4), A44 landed voice-relative, A43 settled
+    by declaration. 19 inherited annotations, not an exemption.
   * V3 DONE. AC#31 proven in pixels. A44 RE-RULED: the narration script check is
     VOICE-RELATIVE, because the engine's DEFAULT voice mhe-mix is hi-IN-SwaraNeural
     and can pronounce Devanagari -- so an absolute refusal would break the default.
@@ -372,6 +387,66 @@ BASELINE PATH -> OUR PATH. Read this before looking for a file.
   There is NO flat path. doc_to_video_channel.util raises ModuleNotFoundError, and
   a test holds it that way, because two spellings of one module is the drift the
   dropped facade existed to prevent.
+
+=============================================================================
+V5 -- DONE. 6,821 lines. THE TREE IMPORTS. THE CHOKEPOINT WORKS.
+=============================================================================
+  cli 875 + duration 285 + llm 283 + narration 1,107 + pptx 1,022 + slides 758 +
+  speech 765 + validate 530 + video 855 + voice 341 = 6,821 exactly, all
+  byte-identical to VENDOR_REF. All 16 modules import; plan_lesson is callable.
+  That was false at V4 BY DESIGN, so this is the first step at which the pipeline is
+  RUNNABLE rather than merely present.
+
+  INHERITED TYPE DEBT ANNOTATED, NOT EXEMPTED. The ten brought 21 no-untyped-def
+  across 4 files -- the debt the engine relaxes for its own studio package. 19
+  signatures annotated so the strict gate stays whole, because the rule here is "no
+  exemption". Two choices were wrong first time: pptx geometry typed `int` when
+  python-pptx takes Emu FLOATS, and a line-rewriting script produced `def def` and
+  dropped a `return`. pptx.py was restored from the reference and redone.
+
+  AC#26: write_media IS THE CHOKEPOINT, and the first version called it from
+  NOWHERE -- the routing test caught it. Three decisions:
+    * it lives at the END of _render_media, which is DEFINED IN video.py and called
+      from TWO places in cli.main, so the control sits where both branches converge
+      rather than at either call site. My first attempt put the import in cli.py,
+      which would have been the wrong file entirely.
+    * refusal raises a TYPED FixtureRefusal, so a caller can branch without parsing
+      a message. Measured: refused, and NOTHING left on disk -- a refusal that
+      cleaned up after itself would still have run the thing it refuses.
+    * the exit code is 4, and AC#26's text saying 2 is the STALE one. 12.1 gives 2
+      to argparse and reserves 4 for "refused on purpose". A refusal on 2 is
+      indistinguishable from a typo, and a caller treating every non-zero as "retry
+      or escalate" would retry a standing policy.
+
+  A44 LANDED, VOICE-RELATIVE. Measured: en-IN + Devanagari REFUSED, hi-IN +
+  Devanagari accepted, en-IN + English accepted, en-IN + Japanese REFUSED. The
+  default voice is hi-IN-SwaraNeural, so an absolute rule would break the voice
+  that CAN pronounce Devanagari.
+
+  A43 SETTLED AS SATISFIED BY THE DECLARATION, NOT THE HEURISTIC.
+  _entity_tokens still does not recognise uv, curl, astral, sh or bash -- measured
+  after landing -- and that is now on purpose. The storyboard declares the commands
+  and spoken_command_trigrams protects the trigrams inside them, so patching
+  _entity_tokens would be a guess where a declaration exists. A test says so.
+
+  THE 5.6 TWO-BINDING REQUIREMENT IS NOW ASSERTABLE: install_stub() returns
+  ['plan', 'narration'] where at V4 it returned []. The V4 test that asserted the
+  empty result was REPLACED, not extended -- a test asserting a state which has
+  just become false fails, and the obvious reading is that the change broke
+  something.
+
+  THE MANIFEST CAUGHT A FALSE CLAIM OF MINE. I recorded "annotated" for all ten V5
+  modules; SIX are byte-identical and never had type errors. The both-directions
+  test failed on duration.py, and voice.py picked up video.py's description through
+  a bad regex. channel_edits now matches MEASURED divergence: 8 with edits, 8
+  without.
+
+  writer.py is OURS, sits in studio/ because the renderers must reach it, and is in
+  the build order's table because video.py imports it. It has NO manifest row --
+  the manifest records what came from VENDOR_REF, and putting a file we wrote in it
+  would be a worse lie. Measured: the "every relative import must be scheduled"
+  check caught its absence from STEP_OF.
+
 
 =============================================================================
 V4 -- DONE. 2,505 lines. THE TREE IS NOW KNOWINGLY UNIMPORTABLE.
