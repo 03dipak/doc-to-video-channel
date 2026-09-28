@@ -43,6 +43,7 @@ STEP_OF = {
     "pptx": "V5", "slides": "V5", "speech": "V5", "validate": "V5",
     "video": "V5", "voice": "V5",
     "writer": "V5",  # OURS, not vendored: AC#26's egress chokepoint
+    "captions": "V6",  # OURS, not vendored: D1's caption burn-in stage
 }
 
 #: The most recent step landed. Advances as the build proceeds; every expectation
@@ -50,7 +51,9 @@ STEP_OF = {
 #: rather than a rewrite -- and the V4-specific tests still had to be REPLACED,
 #: because a test that asserts a state which has just become false is a test that
 #: fails, and the obvious reading is that the change broke something.
-LANDED_THROUGH = "V5"
+#: D1 landed the caption stage at V6: `studio/captions.py` (ours) and the
+#: restored `studio/__init__.py` facade (vendored, §5.1 row 18).
+LANDED_THROUGH = "V6"
 
 
 #: Files WE wrote that live in `studio/` because the renderers must reach them.
@@ -60,11 +63,15 @@ LANDED_THROUGH = "V5"
 #: extra. Declared once here and once in the segregation test, which is a
 #: duplication worth naming -- the alternative, a manifest row for a file we wrote,
 #: would be a worse lie, because the manifest records what came from VENDOR_REF.
-OURS_IN_STUDIO = frozenset({"writer"})
+#: `captions.py` is the second, at D1. It is ours and lives here because
+#: `_render_media` calls it, and the same reasoning as `writer.py` applies: the
+#: renderers have to reach it, so it sits in `studio/`, and the manifest of
+#: vendored files must not list it.
+OURS_IN_STUDIO = frozenset({"writer", "captions"})
 
 
 def landed() -> set[str]:
-    order = ["V1", "V2", "V4", "V5"]
+    order = ["V1", "V2", "V4", "V5", "V6"]
     limit = order.index(LANDED_THROUGH)
     allowed = {s for s in order[: limit + 1]}
     return {name for name, step in STEP_OF.items() if step in allowed}

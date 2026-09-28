@@ -1296,6 +1296,58 @@ where a fix has silently missed the other one four times. It lands in **V5**, wi
 the rest of the render path, and it is the *first* thing to check when a
 rendered frame shows captions on one output and not the other.
 
+**D1 LANDED, and instrument 1 does not gate what §12.2 believed it would.**
+The stage is `studio/captions.py`, wired into `_render_media` between `build_pptx`
+and `assemble_video` so it crosses **both** renderers, and it refuses before
+drawing anything if the render font cannot draw the text. Verified by rendering:
+two PNG frames and a two-slide deck both carry the caption, and the pixels survive
+into a real 3.005s MP4 — a frame extracted with `ffmpeg` measures the same bbox
+`(42, 603, 446, 623)` as the lossless PNG it came from.
+
+**Instrument 2 (`instrument_caption_bbox`) is sound.** It measures the ink extent
+of the band, and it reads the band's **own modal colour** with a tolerance rather
+than `config.BG` exactly. The exact version was right on a lossless PNG and wrong on
+every encoded frame: a frame pulled from the MP4 reported the whole 1280x72 band as
+ink — 92,160 pixels and a 72px "glyph height" for a 25px caption. **That is the
+`A18` defect again, for captions: an instrument that reads the intermediate instead
+of the published file has measured nothing.** The LLD already learned this for
+loudness; the first caption instrument repeated it.
+
+**Instrument 1 (`instrument_glyph_height`) is NOT a gate, and §12.2's wording
+overstated it.** Ink extent is a function of *which characters* the caption contains.
+Measured over 7 adversarial Latin strings at one fixed 26px font: **14px to 25px**, a
+44% spread — "aeiou nm sso" and "iiiiii" have no ascender or descender to measure.
+The first floor was set at 20px from a single full-sentence sample that measured
+25px, so it **rejected legible captions**; it is now 12px, below the worst case, and
+is explicitly a *weak* floor that catches gross errors only.
+
+**Three candidate content-independent measures were built and all three failed.**
+
+| candidate | failure |
+|---|---|
+| ink extent | content-dependent: 14–25px at one font size |
+| exact `BG` equality | 92,160 false ink pixels on any encoded frame |
+| baseline-to-baseline pitch | needs two *inked* lines; a blank second line is indistinguishable from an absent one — measured 30px, 6px, and 0 on three captions |
+
+The pitch measure was **removed rather than shipped**, because returning 0 or 6
+unpredictably is worse than not offering it. So instrument 1 currently *reports* a
+true pixel fact under an honestly weak floor, and **what would make it gateable is
+an open question, not a settled one**: it needs either a content-independent pixel
+measure that has not been found at 26px/30px leading in a 72px band, or a rule that
+every caption occupies a fixed number of *inked* lines. Neither is decided here.
+
+**Also found by rendering, and pinned: the tofu hole.** A caption of pure Devanagari
+burned as eight `.notdef` boxes measured 1,064 ink pixels and a 23px glyph height —
+it **satisfied** a 20px legibility floor while being unreadable. So the floor could
+not tell legible text from tofu. `UnrenderableCaption` now refuses instead, decided
+from the font rather than from the picture: the mask of an unmapped codepoint is
+byte-identical to a private-use codepoint's mask. Combining marks are correctly *not*
+reported missing — they map to nothing visible, which is not the same as mapping to
+`.notdef`. The refusal is at the **stage**, not per renderer, because the PNG path
+uses DejaVu and the deck declares Arial and neither has Devanagari; a caption refused
+on the video and burned as boxes into the deck is the two-renderer divergence this
+stage exists to prevent.
+
 **Consequence:** `AC#30`'s instruments 1 and 2 are restored as pixel
 measurements, and the two provisional rows in §12 (caption text-fit, panel
 geometry) are **withdrawn** — they were placeholders for instruments that had

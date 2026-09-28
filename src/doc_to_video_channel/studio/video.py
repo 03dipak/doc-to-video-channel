@@ -14,6 +14,10 @@ from collections.abc import Sequence
 from pathlib import Path
 from typing import Any
 
+# The duration contract lives in `duration.py` so the planner can use it without
+# importing moviepy. Re-exported here because `cli.py` and the tests reach these
+# through this module, and moving a definition should not silently break callers.
+from .captions import caption_stage as _caption_stage
 from .config import (
     LOUDNESS_LRA,
     LOUDNESS_TARGET,
@@ -22,10 +26,6 @@ from .config import (
     TTS_LOUDNORM,
     TTS_VOICE,
 )
-
-# The duration contract lives in `duration.py` so the planner can use it without
-# importing moviepy. Re-exported here because `cli.py` and the tests reach these
-# through this module, and moving a definition should not silently break callers.
 from .duration import duration_verdict as _duration_verdict
 from .duration import (
     reachable_duration_band,  # noqa: F401
@@ -852,6 +852,26 @@ def _render_media(plan: dict, out_base: Path, script: dict, voice: str | None,
     tp = time.monotonic()
     build_pptx(plan, Path(f"{out_base}.pptx"))
     print(f"  [4/5] done in {time.monotonic() - tp:.0f}s")
+
+    # D1 / AC#30 instruments 1-2: burn the captions in, crossing BOTH renderers.
+    #
+    # Placed HERE and not earlier, for two reasons that are both load-bearing. It
+    # must run after `build_pptx` because the deck is one of the two outputs and a
+    # stage that burned only the frames would be the recorded defect -- AGENTS.md
+    # notes a fix has silently missed the other renderer four times. And it must run
+    # before `assemble_video`, which reads the very PNG paths this stage rewrites, so
+    # the glyphs are in the MP4 without threading a second copy of every frame
+    # through the assembler.
+    #
+    # `caption_stage` refuses BEFORE drawing anything if the font cannot render the
+    # text, so there is no state in which the video has captions and the deck does
+    # not. That refusal is `SystemExit`, consistent with the fixture refusal below.
+    caption_report = _caption_stage(slides, script, Path(f"{out_base}.pptx"))
+    print(
+        f"  captions  : {caption_report['captions']} caption(s) burned into "
+        f"{caption_report['frames_burned']} frame(s) and "
+        f"{caption_report['deck_slides_burned']} slide(s)"
+    )
     if not skip_video:
         print("  [5/5] Rendering video (this can take a while) ...")
         # The cover card is not a narrated scene, so it gets no word timings.

@@ -431,6 +431,66 @@ COVERAGE, AND WHY 18% IS NOT A REGRESSION
 
 
 =============================================================================
+D1 -- DONE. THE CAPTION STAGE, AND INSTRUMENT 1 IS NOT THE GATE §12.2 PROMISED
+=============================================================================
+  `studio/captions.py`, OURS, 184 stmts at 90%. Wired into `_render_media` BETWEEN
+  `build_pptx` and `assemble_video`, because the deck must exist and the assembler
+  reads the very PNGs the stage rewrites. Crosses BOTH renderers as the LLD
+  requires: two implementations, one test that both received captions, because
+  AGENTS.md records a fix missing the other renderer four times.
+  VERIFIED BY RENDERING, not by reading: 2 PNG frames + a 2-slide deck carry the
+  caption, and a frame extracted from a real 3.005s MP4 with ffmpeg measures the
+  same bbox (42, 603, 446, 623) as the lossless PNG it came from.
+
+  FOUR FINDINGS, all from measuring, three of them mine:
+  1. THE A18 DEFECT, REPEATED FOR CAPTIONS. The instrument compared band pixels to
+     `config.BG` EXACTLY -- right on a lossless PNG, wrong on every encoded frame.
+     Measured on a frame from the MP4: 92,160 ink pixels, the whole 1280x72 band,
+     and a 72px "glyph height" for a 25px caption. An instrument that reads the
+     intermediate instead of the published file has measured nothing, and the LLD
+     already learned that for loudness. Now differences against the band's OWN
+     modal colour with a tolerance; PNG and MP4 agree.
+  2. INSTRUMENT 1 IS CONTENT-DEPENDENT AND THE FLOOR REJECTED LEGIBLE CAPTIONS.
+     Over 7 adversarial Latin strings at ONE fixed 26px font, ink extent runs 14px
+     to 25px -- 44% -- because it depends on which characters are present. The
+     first floor was 20px, calibrated from one full-sentence sample measuring 25px,
+     so "aeiou nm sso" and "iiiiii" FAILED it. Now 12px, below the worst case, and
+     declared a WEAK floor that catches gross errors only.
+  3. NO CONTENT-INDEPENDENT MEASURE FOUND, after building three. Ink extent varies
+     with the words; exact BG equality breaks on any codec; baseline-to-baseline
+     pitch needs two INKED lines and a blank padded second line is indistinguishable
+     from an absent one (measured 30px, 6px, 0). The pitch measure was REMOVED
+     rather than shipped, because returning 0 or 6 unpredictably is worse than not
+     offering it. Whether instrument 1 can gate at all is now an OPEN question.
+  4. THE TOFU HOLE, pinned. A pure-Devanagari caption burned as eight .notdef boxes
+     measured 1,064 ink px and 23px glyph height -- it SATISFIED the 20px floor
+     while being unreadable. So the floor could not tell text from tofu.
+     `UnrenderableCaption` now refuses, decided from the FONT: an unmapped
+     codepoint's mask is byte-identical to a private-use codepoint's mask.
+     Combining marks are correctly not reported missing -- nothing visible, which
+     is not `.notdef`. Refusal is at the STAGE, not per renderer.
+
+  Also: 443ms per instrument call, twice over 92,160 pixels, made the suite crawl.
+  Now `ImageChops.difference` + `getbbox()` at C level: 80ms, same answer. And a
+  duplicate `histogram()` line survived an edit and would have read bucket 255 by
+  luck; ink is now the sum above bucket 0, since the THRESHOLD defines ink.
+
+  TWO TESTS OF MINE FAILED FOR REAL REASONS, both fixed at the cause:
+  - `test_the_stage_is_wired...` matched `assemble_video(` and found the `def`,
+    8,000 characters earlier. Same class as the LLD's "two spellings": matching a
+    name where a call site was meant. Now matched on the call's own arguments.
+  - `test_no_module_slices_a_document_at_a_raw_character_offset` (VENDORED) greps
+    for the literal `\[:\s*max_chars` and pins 2 offenders in `util.py`. My caption
+    slice collided on the NAME. Renamed the parameter to `cols`: `max_chars` is the
+    document-window CONTRACT in this codebase and a vendored guard keys on it. Not
+    edited in the test, and not papered over with an exception -- a guard that fires
+    on unrelated code is a guard people learn to ignore.
+
+  coverage: ours 476 stmts 98% (unchanged), vendored 5,545 stmts 64%, captions.py
+  184 stmts 90%. Whole tree 64% against the 60 floor. Gate: exit 0.
+
+
+=============================================================================
 V6 -- DONE. 315 REFERENCE TESTS LANDED. AND THEY FALSIFIED A V4 RULING.
 =============================================================================
   VENDORED TESTS: 7 files, 7,097 lines, import-rename ONLY. Verified: each copy is

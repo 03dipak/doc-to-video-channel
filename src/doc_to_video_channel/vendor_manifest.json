@@ -169,7 +169,8 @@
       "reason": "renderer assembly; TTS + moviepy",
       "channel_edits": [
         "inherited no-untyped-def annotated",
-        "V5/AC#26: write_media called at the END of _render_media, which is the only definition and is reached by BOTH cli.main call sites"
+        "V5/AC#26: write_media called at the END of _render_media, which is the only definition and is reached by BOTH cli.main call sites",
+        "D1/AC#30: _caption_stage() call between build_pptx and assemble_video, so captions burn into the frames AND the deck, and a refusal fires before either is drawn"
       ],
       "exists": true,
       "lines": 855,

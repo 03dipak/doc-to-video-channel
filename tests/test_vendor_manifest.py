@@ -424,8 +424,13 @@ def test_vendored_and_original_modules_are_segregated() -> None:
     # it correctly has no row for a file WE wrote. `writer.py` is declared ours here
     # rather than added to the manifest, because putting a non-vendored file in a
     # manifest of vendored files would be a worse lie.
+    # `captions.py` joined `writer.py` at D1. Declared here rather than added to
+    # the manifest, for the reason `writer.py` is: a manifest of vendored files
+    # that lists a file we wrote is a worse lie than a manifest that omits it.
+    # This assertion is what forced the declaration -- it failed the moment D1's
+    # module landed, which is the behaviour the comment below describes.
     ours_in_studio = on_disk_in_studio - landed
-    assert ours_in_studio == {"writer.py"}, (
+    assert ours_in_studio == {"writer.py", "captions.py"}, (
         f"unexpected non-vendored module in studio/: {sorted(ours_in_studio)}. A new "
         f"one must be declared as ours, not left to look like part of the copy."
     )
