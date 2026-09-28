@@ -1331,10 +1331,20 @@ is explicitly a *weak* floor that catches gross errors only.
 
 The pitch measure was **removed rather than shipped**, because returning 0 or 6
 unpredictably is worse than not offering it. So instrument 1 currently *reports* a
-true pixel fact under an honestly weak floor, and **what would make it gateable is
-an open question, not a settled one**: it needs either a content-independent pixel
-measure that has not been found at 26px/30px leading in a 72px band, or a rule that
-every caption occupies a fixed number of *inked* lines. Neither is decided here.
+true pixel fact under an honestly weak floor.
+
+**RULED 2026-09-28: instrument 1 is UNGATEABLE and stays reported.** The floor
+stays weak on purpose, and the consequence is stated rather than buried: a caption
+too small to read **will pass this instrument**. Rewording the criterion until it
+reads as covered is the round-7 defect, so `AC#30` is recorded as **not satisfiable
+on instrument 1** instead.
+
+What would change the ruling, and is deliberately not attempted here: a
+content-independent pixel measure, or a rule that every caption occupies a fixed
+number of *inked* lines. Neither exists. Two options were considered and declined --
+a font-calibration ratio, which renders a fixed reference string with the same font
+and gates on the ratio, and a two-inked-line rule, which changes caption design and
+costs vertical space.
 
 **Also found by rendering, and pinned: the tofu hole.** A caption of pure Devanagari
 burned as eight `.notdef` boxes measured 1,064 ink pixels and a 23px glyph height —
@@ -2056,6 +2066,19 @@ is an import nothing will ever verify.*
     caption glyph height at 720p, **disjoint** caption and command-panel bounding
     boxes, `ebur128` within the `A18` target ± a stated tolerance, and a narration
     transcript containing the tool name with a matching `WordBoundary` token.
+    **INSTRUMENT 1 IS UNGATEABLE, owner-ruled 2026-09-28, and `AC#30` is NOT
+    SATISFIABLE as written because of it.** The caption glyph height is *measured
+    and reported* -- `studio.captions.instrument_glyph_height` -- but it **cannot
+    gate**, because ink extent is a function of which characters the caption
+    contains: over 7 adversarial Latin strings at one fixed 26px font it reads
+    **14px to 25px**, a 44% spread. Three content-independent candidates were built
+    and all three failed, with numbers, in §12.2. The floor is deliberately
+    **weak** -- 12px, below the worst case -- so it rejects no legible caption; it
+    catches gross errors and nothing more, and a caption too small to read **will
+    pass it**. Instruments **2, 3 and 4 still gate.** Recording a number that
+    cannot fail is what round 7 caught, so the alternative -- keeping the adjective
+    and quietly dropping the instrument -- was rejected in favour of naming the
+    instrument ungateable.
     **This is the first moment the design has been exercised at all**, and §5.4's
     V0–V6 does not begin until it has. *v008's four adjectives — legible, clear,
     intelligible, pronounced — had no instrument and could not fail, and this is

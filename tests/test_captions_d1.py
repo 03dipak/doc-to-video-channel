@@ -450,3 +450,39 @@ def test_the_instrument_call_is_not_quadratically_slow(tmp_path: Path) -> None:
         C.instrument_caption_bbox(pages[0][0])
     per_call = (time.monotonic() - start) / 5
     assert per_call < 0.25, f"instrument call is {per_call * 1000:.0f}ms"
+
+
+def test_the_lld_records_instrument_one_as_ungateable() -> None:
+    """Owner-ruled 2026-09-28. `AC#30` is not satisfiable as written, and the
+    reason is in the design record rather than only in a commit message.
+
+    Round 7 caught an acceptance criterion phrased as an adjective with no
+    instrument that could fail. Marking this one ungateable -- rather than
+    rewording it until it reads as covered -- is the same discipline applied
+    forward, and this is the check that keeps the ruling from being quietly
+    deleted by a later editing pass.
+    """
+    lld = (
+        Path(__file__).resolve().parents[1] / "docs" / "LLD-tutorial-lane.md"
+    ).read_text(encoding="utf-8")
+    assert "INSTRUMENT 1 IS UNGATEABLE" in lld, (
+        "AC#30's instrument-1 ruling has been removed from the LLD. It is an "
+        "owner ruling and it is load-bearing: without it the criterion reads as "
+        "covered when it is not."
+    )
+    assert "not satisfiable" in lld, "AC#30 must state that instrument 1 blocks it"
+
+
+def test_the_weak_floor_stays_weak() -> None:
+    """The floor must not be tightened into a gate without the ruling changing.
+
+    It sits below the worst case measured over the adversarial population, so a
+    legible caption can never be rejected. A future font change that flattened the
+    spread would be the signal to raise it -- and to change `AC#30` with it, not
+    silently.
+    """
+    assert C.CAPTION_MIN_GLYPH_PX <= 14, (
+        f"the floor is {C.CAPTION_MIN_GLYPH_PX}px, at or above the 14px worst case "
+        f"measured over the adversarial population. At that value it rejects "
+        f"legible captions, which is the defect finding 2 recorded."
+    )

@@ -475,6 +475,16 @@ D1 -- DONE. THE CAPTION STAGE, AND INSTRUMENT 1 IS NOT THE GATE §12.2 PROMISED
   duplicate `histogram()` line survived an edit and would have read bucket 255 by
   luck; ink is now the sum above bucket 0, since the THRESHOLD defines ink.
 
+  OWNER RULING 2026-09-28, after the four findings above: INSTRUMENT 1 IS
+  UNGATEABLE AND STAYS REPORTED. So `AC#30` is NOT SATISFIABLE as written, and is
+  recorded that way rather than reworded into something that reads as covered --
+  keeping an adjective with an instrument that cannot fail is the round-7 defect.
+  Instruments 2, 3 and 4 still gate. The floor stays weak on purpose: a caption too
+  small to read WILL PASS instrument 1, and two tests pin both halves of that --
+  one that the LLD still carries the ruling, one that the floor has not been
+  tightened into a gate. Declined, not attempted: a font-calibration ratio, and a
+  two-inked-line rule that would change caption design.
+
   TWO TESTS OF MINE FAILED FOR REAL REASONS, both fixed at the cause:
   - `test_the_stage_is_wired...` matched `assemble_video(` and found the `def`,
     8,000 characters earlier. Same class as the LLD's "two spellings": matching a
