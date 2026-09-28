@@ -530,7 +530,7 @@ so placing it later would mean shipping a reader that raises
 therefore unblocks at V1**, and its measured population is below |
 | **V2** | `topics.py`, `schema.py` — **211 lines** (measured, both byte-identical to `VENDOR_REF`; `schema.py` then changed for `AC#7`) | the two Pydantic models validate; `AC#6`'s Devanagari case reaches the validator. *These are the first vendored modules with **internal** imports — `schema.py` imports `_has_non_latin_script` from `text`, `topics.py` imports the banned n-grams from `config` — which is why V2 follows V1.* **`AC#7` is met here and required a real change:** `section` was a bare `str` accepting anything. Measured: `'bogus'` validated clean. See §12.8. |
 | **V3** | `BRAND_NAME` / `BRAND_FOOTER` — **2 lines** | one scene rendered, frames sampled, old brand absent and new brand present. `PACKAGE_NAME` renders on **100% of runtime frames**, so copying it verbatim is *correct* per §5.5 and invisible in a 17k-line diff — which is why it is its own commit |
-| **V4** | `plan.py` — 2,505 lines, alone | **carries §5.6's harness in the same commit**, not after it: the harness's purpose is to run `plan_lesson`, and `plan_lesson` arrives *with* V4, so gating V4 on the harness is circular |
+| **V4** | `plan.py` — **2,505 lines** (measured, byte-identical to `VENDOR_REF` apart from one return annotation), alone | **carries §5.6's harness in the same commit**, not after it: the harness's purpose is to run `plan_lesson`, and `plan_lesson` arrives *with* V4, so gating V4 on the harness is circular. **Landed 2026-09-28, and the tree is KNOWNLY UNIMPORTABLE at this step** — see §12.9 |
 | **V5** | the remaining **10** modules (`cli`, `duration`, `llm`, `narration`, `pptx`, `slides`, `speech`, `validate`, `video`, `voice` — **6,821** lines, *not the 9,326 v010 stated: measured, and the build order is now checked by `test_the_build_order_accounts_for_every_line`*) | all 315 vendored tests pass; the audio gate and caption gate are reachable; **`write_media` exists and both `_render_media` call sites route through it** — the media chokepoint §8.3 creates here, and `AC#26` is a V5 criterion because the component it gates does not exist before this step. *v008 said 8; 16 − V1(3) − V2(2) − V4(1) = 10* |
 | **V6** | the 7 test files, import-rename only | the collection report shows the expected count **and** the run count |
 | **V7** | the seam (Phase 1) | the behavioural differential, the ownership audit, the two renderers × every `SectionKind` |
@@ -1679,6 +1679,68 @@ is a refusal or a supported locale.
 **Two mutations hold it.** Put the field back to `str` and the type test fails;
 default it to a real member and the absent-section test fails. Both confirmed by
 mutating the file and watching the suite go red, then restoring it.
+
+### 12.9 V4 lands a tree that cannot import, and that is the build order working
+
+**Measured at V4, and it is a property of the build order rather than a defect —
+but it is invisible to the gate, which is the part that matters.**
+
+`plan.py` imports eight siblings. Measured after landing: `config`, `text`, `topics`
+and `util` are present; **`duration`, `llm`, `narration` and `voice` are V5**. So:
+
+```
+plan.py does NOT import: No module named 'doc_to_video_channel.studio.duration'
+```
+
+and `ruff` passed, `pytest` passed, and `mypy` reported one unrelated error. **All
+three were indifferent to the tree being unimportable**, because
+`pyproject.toml` sets `ignore_missing_imports = true`.
+
+**That setting is not wrong, and this is why it stays.** It was justified as "the
+vendored test files are type-dirty" — a third-party-stub concern. But it *also*
+silences a **missing sibling module**, which is a different defect entirely: a
+module that has not landed yet is a build-order state, not an untyped dependency.
+Turning it off would surface 74 errors from the vendored tests at V6.
+
+So the gap is covered by a test instead, `tests/test_build_order.py`, which
+**measures** it:
+
+* every landed module is on disk, and no others;
+* a landed module whose siblings have all landed **must import**;
+* a landed module whose siblings are still scheduled is **skipped with the reason
+  printed**, not passed silently;
+* the set of blockers is asserted to be **exactly** the V5 set — a different set
+  would mean something unplanned is missing;
+* a relative import naming something the manifest never mentions is a failure,
+  because it cannot be scheduled and so nothing will ever verify it.
+
+Both mutations confirmed: landing `duration.py` early fails two tests, and
+claiming the V3 state fails one.
+
+**The §5.6 harness is correct but INERT, and says so.** It lands with V4 as the
+LLD requires, and `main()` exits **2** with the reason rather than reporting a pass
+it did not earn. It self-tests first — §5.6's precondition is that a stub must
+**vary within a run**, and a constant stub would make every digest identical and
+prove nothing. It records what it was asked and with what retry budget, because
+those parameters are part of the signature it stands in for, not decoration.
+
+Two §5.6 requirements are encoded in its shape and must not be lost:
+
+1. **Patch every `_ask_llm_stable` binding.** `plan.py` and `narration.py` each
+   hold one. Measured: `install_stub()` returns `[]` at V4, because `plan.py` cannot
+   be imported, so there is no binding to patch. When V5 lands this test must
+   **change**, not be extended, to assert both are patched.
+2. **Digest the written `*.tts_script.json`, not the plan dict.** §5.6 measured
+   that a narration-only variation yields **1 digest over 6 runs** when the plan is
+   digested, because the stub's narration never reaches the plan. A plan-digest
+   differential cannot see the chain it exists to test.
+
+**One thing V4 did not achieve, stated plainly:** the LLD's phrasing — "carries
+§5.6's harness in the same commit" — is satisfiable as *correct code present*, not
+as *a passing harness*. Gating V4 on a passing harness is **impossible** until V5,
+because `plan_lesson` cannot be called. The circularity the LLD was avoiding is
+avoided; the harness is simply not yet runnable, and it declines to pretend
+otherwise.
 
 ## 13. Acceptance criteria
 

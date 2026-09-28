@@ -69,7 +69,9 @@
       "decision": "copy",
       "step": "V4",
       "reason": "planner; hosts the _extra_gates registry",
-      "channel_edits": [],
+      "channel_edits": [
+        "one return annotation, so the strict gate stays whole"
+      ],
       "exists": true,
       "lines": 2505,
       "sha256": "8fdbee07a61560d28c7bfd6268fbc77c5d8549e6cc99642043e041b3f8fb17e7"

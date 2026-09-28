@@ -377,7 +377,14 @@ def test_vendored_and_original_modules_are_segregated() -> None:
     assert vendored == landed, (
         f"studio/ holds {sorted(vendored)} but the manifest says {sorted(landed)} are landed"
     )
-    assert originals == {"storyboard.py", "harness.py", "vendor.py"}, (
-        f"an unexpected module beside the package: {sorted(originals)}"
+    # The originals are DERIVED too: a module beside the package is ours iff the
+    # manifest does not list it. Hardcoding the set broke the moment V4 added
+    # planning_harness.py -- which is the same brittleness as hardcoding the
+    # vendored set, and it would be edited at every remaining step.
+    assert originals == {p.name for p in package.glob("*.py") if p.name != "__init__.py"}
+    known = {Path(e["path"]).name for e in manifest["modules"]}
+    assert not (originals & known), (
+        f"{sorted(originals & known)} sit beside the package but the manifest calls "
+        f"them vendored -- a file cannot be both"
     )
     assert not (vendored & originals), "a filename is in both trees"

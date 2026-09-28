@@ -37,8 +37,15 @@ Two things, in this order. Nothing else is blocked.
 7. DONE: V3. AC#31 PROVEN IN PIXELS, not asserted in config. And the first
    attempt was measuring nothing, which the differential caught. See below.
 
-8. THEN: V4 -- plan.py, 2,505 lines, ALONE, carrying the section 5.6 harness IN THE
-   SAME COMMIT. Closes AC#18-#24. This is the biggest single step so far.
+8. DONE: V4. 2,505 lines, byte-identical plus one annotation, and the section 5.6
+   harness landed WITH it as the LLD requires. The tree is KNOWINGLY UNIMPORTABLE
+   at this step and the gate could not see it. See "V4 -- DONE" below.
+
+9. THEN: V5 -- the remaining 10 modules, 6,821 lines, PLUS write_media, the
+   fixture-refusal chokepoint both render call sites reach. This is where the
+   withdrawn `publish` verb's control now lives, where A43 and A44 land, where the
+   burn-in stage (D1) goes, and where the two-binding harness requirement becomes
+   assertable. Closes AC#25, AC#26, AC#13, AC#18-#24 needs running first.
 
 6. NOT BUILT, ON PURPOSE: the files themselves. V0 measures intent; V1-V5 copy.
    A manifest built from the LLD's table would agree with the table by
@@ -101,6 +108,10 @@ WHAT IS TRUE, AND IS ABOUT THE WORK RATHER THAN A MEASUREMENT:
   * V1 DONE. 955 lines vendored byte-identical, A5 fixed, AC#17(a) found FALSE in
     the copied code and fixed.
   * V2 DONE. 211 lines, AC#7 turned out to need a real change, A44 found.
+  * V4 DONE. 2,505 lines, plus the 5.6 harness. The tree is knowingly
+    UNIMPORTABLE at this step -- 4 of plan.py's 8 siblings are V5 -- and
+    ignore_missing_imports = true meant the gate could not see it. Now measured by
+    tests/test_build_order.py instead.
   * V3 DONE. AC#31 proven in pixels. A44 RE-RULED: the narration script check is
     VOICE-RELATIVE, because the engine's DEFAULT voice mhe-mix is hi-IN-SwaraNeural
     and can pronounce Devanagari -- so an absolute refusal would break the default.
@@ -361,6 +372,42 @@ BASELINE PATH -> OUR PATH. Read this before looking for a file.
   There is NO flat path. doc_to_video_channel.util raises ModuleNotFoundError, and
   a test holds it that way, because two spellings of one module is the drift the
   dropped facade existed to prevent.
+
+=============================================================================
+V4 -- DONE. 2,505 lines. THE TREE IS NOW KNOWINGLY UNIMPORTABLE.
+=============================================================================
+  plan.py 2505 lines, byte-identical to VENDOR_REF apart from ONE return
+  annotation. It imports 8 siblings; 4 have landed (config, text, topics, util)
+  and 4 have not (duration, llm, narration, voice -- all V5). So:
+      plan.py does NOT import: No module named '...studio.duration'
+
+  AND THE GATE DID NOT CARE. ruff passed, pytest passed, mypy reported one
+  unrelated error. All three were INDIFFERENT to the tree being unimportable,
+  because pyproject sets ignore_missing_imports = true. That setting is not wrong
+  -- it is there for the vendored tests' 74 errors -- but it ALSO silences a
+  MISSING SIBLING MODULE, which is a build-order state, not a type-dirty package.
+
+  COVERED BY A TEST INSTEAD: tests/test_build_order.py measures it. Every landed
+  module is on disk and no others; a landed module whose siblings have all landed
+  MUST import; one whose siblings are still scheduled is skipped WITH THE REASON
+  printed; the blocker set is asserted to be EXACTLY the V5 set, because a
+  different set would mean something unplanned is missing; and a relative import
+  naming something the manifest never mentions fails, because it cannot be
+  scheduled so nothing will ever verify it. Both mutations confirmed.
+
+  THE 5.6 HARNESS IS CORRECT BUT INERT, AND SAYS SO. It lands with V4 as the LLD
+  requires, self-tests first (a stub must VARY WITHIN A RUN, or every digest is
+  identical and nothing is proven), and exits 2 with the reason rather than
+  reporting a pass it did not earn. Measured: install_stub() returns [] at V4,
+  because plan.py cannot be imported so there is no binding to patch. When V5
+  lands that test must CHANGE, not be extended, to assert both bindings.
+
+  STATED PLAINLY: "carries the harness in the same commit" is satisfiable as
+  CORRECT CODE PRESENT, not as A PASSING HARNESS. Gating V4 on a passing harness is
+  impossible until V5, because plan_lesson cannot be called. The circularity the LLD
+  was avoiding is avoided; the harness is not yet runnable and declines to pretend
+  otherwise.
+
 
 =============================================================================
 V3 -- DONE. AC#31 PROVEN IN PIXELS. A config read proves nothing.
