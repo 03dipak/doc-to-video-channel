@@ -117,7 +117,8 @@
           "checkpoint": "Three things exist: pyproject.toml, README.md, src.",
           "state_change": "Creates pyproject.toml, README.md and src/ in the current directory.",
           "common_failure": "If uv is not on PATH this fails with `uv: not found` -- go back to chapter 1.",
-          "replayable": true
+          "replayable": true,
+          "creates_indirectly": "pyproject.toml README.md src"
         },
         {
           "id": "show-requires-python",
@@ -147,7 +148,8 @@
           "checkpoint": "You see `requests==` with an EXACT pin, not a range, and you see the other packages it pulled in.",
           "state_change": "Appends the requirement to pyproject.toml and writes uv.lock.",
           "common_failure": "Running this outside the project root writes a new project instead of editing the existing one.",
-          "replayable": true
+          "replayable": true,
+          "creates_indirectly": "pyproject.toml uv.lock"
         },
         {
           "id": "prove-recorded",
@@ -177,7 +179,8 @@
           "checkpoint": "A resolution count appears AND you notice no packages were installed.",
           "state_change": "Writes uv.lock. Installs nothing. This distinction is the whole point of the step.",
           "common_failure": "Treating lock as install; then you have no way to review a resolution before adopting it.",
-          "replayable": true
+          "replayable": true,
+          "creates_indirectly": "uv.lock"
         },
         {
           "id": "prove-lockfile-exists",
@@ -229,7 +232,8 @@
           "checkpoint": "The word `borrowed` prints, which means the import worked.",
           "state_change": "Installs rich into a temporary environment. Writes NOTHING to pyproject.toml or uv.lock.",
           "common_failure": "Using --with for a dependency the project actually needs; it will be missing on the next machine and nobody will know why.",
-          "replayable": true
+          "replayable": true,
+          "creates_indirectly": "pyproject.toml uv.lock"
         },
         {
           "id": "prove-with-not-recorded",

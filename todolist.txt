@@ -3,8 +3,9 @@ doc-to-video-channel -- TODO
 Written 2026-09-28. Re-measure before citing any number in here; a status
 bullet is a measurement, not a setting. See AGENTS.md.
 
-STATE: 1 of 33 ACs met. 0 of 8 build steps done. 72 LOC src, 146 LOC tests.
-Phase 0 landed (0394541). Gate green: exit 0, 12 tests, 100% of 19 statements.
+STATE: 1 of 33 ACs met. 0 of 8 build steps done. 509 LOC src, 538 LOC tests.
+Gate green: exit 0, 35 tests, 100% of 173 statements and 48 branches.
+Phase 0 landed (0394541). The storyboard layer landed after it (e16b355+).
 A green gate is not a working CLI -- all five verbs are declared and all five
 exit 3. The pipeline is not vendored until V1-V5.
 
@@ -146,15 +147,37 @@ THE STORYBOARD -- BUILT. storyboards/uv-install.storyboard.json
   (install-uv: it installs software and rewrites the shell profile, so re-running
   changes the machine under the test -- exempt WITH a stated reason).
   src/doc_to_video_channel/storyboard.py loads and checks it: contract
-  completeness, elision, and unshown-state. 23 tests, 4 of which are MUTATIONS
-  proving the checks can fail.
-  The unshown-state check found 3 false alarms on its first run and ALL 3 were
-  bugs in the check -- two of them false NEGATIVES. Fixed: trailing full stop, URL
-  read as a local path, and expected_output scanned for pre-existing paths when it
-  is what a step PRINTS.
+  completeness, elision, unshown-state, and undelivered-state. 35 tests, SEVEN of
+  which are MUTATIONS proving the checks can fail.
   Ruled: the storyboard is the SINGLE source for two consumers -- the renderer and
   the replay/learner-only harness. A harness that parsed a transcript of the
   finished video would test the transcription, not the video.
+
+  WHAT THE CHECKS GOT WRONG, because it is the same shape as the source document's
+  own defect -- a validator that cannot fail, or that fails wrongly:
+    * 3 false alarms on the first run, ALL 3 bugs in the check. Two were false
+      NEGATIVES: a trailing full stop made "Creates src/main.py." yield
+      "src/main.py.", so the step that CREATES the file looked like it did not.
+    * a DEAD `mkdir` branch, found by a test: it tested token.startswith("-p ") but
+      "mkdir -p src" splits into three tokens, so no token contains a space and the
+      branch could never fire. It read as if mkdir was handled. It was not.
+    * an rstrip ORDER bug: "a/.".rstrip("/") is a no-op, and the later punctuation
+      strip then leaves "a/" -- a path no file satisfies, so a step merely MENTIONING
+      it in prose would be refused.
+    * a check that cried wolf 8 times on the real storyboard: inferring tool side
+      effects from the command text cannot tell that `uv init` created
+      pyproject.toml, because the command never names it. All 8 were false
+      positives. Replaced with a DECLARED `creates_indirectly` field that a human
+      can falsify by reading.
+    * the check that prose alone satisfied a step's own state -- so a step whose
+      command became `cat > /dev/null` while its prose still said "Creates
+      src/main.py." passed. That is now undelivered-state, and it is separate
+      precisely because the unshown-state check CANNOT see it: the next step
+      legitimately declares the file in its precondition.
+    * 3 lines removed as provably dead, and a duplicated docstring.
+  Coverage is 100% of 173 statements and 48 branches, but that number was only
+  reached after coverage was run and the misses were each explained or fixed. It
+  was 93% when first measured.
 
 OPEN, AND IT BREAKS A CONSTANT: CHAPTERED MODE.
   3-5 min per chapter x 5 chapters = 15-25 min. This design assumed a 4-minute

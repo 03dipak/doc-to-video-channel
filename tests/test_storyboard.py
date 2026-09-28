@@ -16,6 +16,8 @@ from __future__ import annotations
 
 import copy
 import json
+import re
+import tempfile
 from pathlib import Path
 from typing import Any
 
@@ -28,13 +30,15 @@ STORYBOARD = Path(__file__).resolve().parent.parent / "storyboards" / "uv-instal
 
 @pytest.fixture
 def raw() -> dict[str, Any]:
-    return json.loads(STORYBOARD.read_text(encoding="utf-8"))
+    loaded: dict[str, Any] = json.loads(STORYBOARD.read_text(encoding="utf-8"))
+    return loaded
 
 
 def _load(maybe_mutated: dict[str, Any], tmp_path: Path) -> tuple[sb.Storyboard, list[sb.Gap]]:
     target = tmp_path / "mutant.storyboard.json"
     target.write_text(json.dumps(maybe_mutated), encoding="utf-8")
-    return sb.load(target)
+    board, gaps = sb.load(target)
+    return board, gaps
 
 
 def _step(board: dict[str, Any], chapter_id: str, step_id: str) -> dict[str, Any]:
@@ -42,7 +46,8 @@ def _step(board: dict[str, Any], chapter_id: str, step_id: str) -> dict[str, Any
         if chapter["id"] == chapter_id:
             for step in chapter["steps"]:
                 if step["id"] == step_id:
-                    return step
+                    found: dict[str, Any] = step
+                    return found
     raise AssertionError(f"no step {chapter_id}/{step_id} in the storyboard")
 
 
@@ -212,4 +217,182 @@ def test_a_declared_precondition_satisfies_the_state_check(tmp_path: Path) -> No
 
 
 def _load_raw() -> dict[str, Any]:
-    return json.loads(STORYBOARD.read_text(encoding="utf-8"))
+    loaded: dict[str, Any] = json.loads(STORYBOARD.read_text(encoding="utf-8"))
+    return loaded
+
+
+# --- behaviour verified in throwaway scripts, now permanent ------------------
+#
+# Each of these was checked by hand while building the module and appeared in no
+# test. A verification that lives only in a scratch script protects nothing: it is
+# not run by the gate, so it cannot fail the gate, and it is gone next week. These
+# are the lines coverage reported as missed.
+
+
+def test_a_gap_renders_its_own_severity() -> None:
+    """`str(gap)` is the user interface of this module, and it carries the severity.
+
+    Asserted on `.kind`/`.detail` everywhere else, which is why the renderer itself
+    went uncovered until coverage was run.
+    """
+    blocking = sb.Gap("elision", "add-requests", "cannot be copied", blocking=True)
+    warning = sb.Gap("missing-field", "c/goal", "blank", blocking=False)
+    assert str(blocking).startswith("[BLOCKING elision] add-requests:")
+    assert str(warning).startswith("[warning missing-field] c/goal:")
+
+
+def test_expected_output_is_a_compilable_regex() -> None:
+    """The `expected_regex` property, which is what the replay harness will use.
+
+    Asserting only that the string is non-empty would not prove it compiles, and a
+    pattern that fails to compile is a broken harness waiting for a storyboard.
+    """
+    board, _ = sb.load(STORYBOARD)
+    compiled = [step.expected_regex for step in board.steps()]
+    assert len(compiled) == len(tuple(board.steps()))
+    for regex in compiled:
+        assert isinstance(regex, re.Pattern)
+    run = next(s for s in board.steps() if s.id == "record-version")
+    assert run.expected_regex.match("uv 0.12.2 (x86_64-unknown-linux-gnu)")
+    assert not run.expected_regex.match("not a version line")
+
+
+def test_a_chapter_states_the_end_state_it_promises() -> None:
+    board, _ = sb.load(STORYBOARD)
+    for chapter in board.chapters:
+        assert chapter.end_state == chapter.goal
+        assert chapter.start_state.strip(), f"{chapter.id} has no start state"
+
+
+def test_replayable_and_blocked_partition_every_step() -> None:
+    """The harness relies on these two summing to the whole session.
+
+    If a step were silently in neither, the harness would skip it and report clean.
+    """
+    board, _ = sb.load(STORYBOARD)
+    total = len(tuple(board.steps()))
+    assert len(board.replayable_steps()) + len(board.blocked_steps()) == total
+    assert len(board.blocked_steps()) == 1
+    skipped = board.blocked_steps()[0]
+    assert skipped.id == "install-uv"
+    assert skipped.replay_skip_reason.strip()
+
+
+def test_a_file_that_is_not_a_storyboard_is_refused() -> None:
+    """A missing `chapters` key raises, rather than producing an empty session.
+
+    An empty board is the dangerous outcome: every check would pass and the harness
+    would replay nothing while reporting success.
+    """
+    not_a_board = Path(tempfile.gettempdir()) / "not-a-storyboard.json"
+    not_a_board.write_text('{"nope": 1}', encoding="utf-8")
+    with pytest.raises(ValueError, match="no `chapters` key"):
+        sb.load(not_a_board)
+
+
+def test_a_redirect_creates_the_file_the_check_looks_for() -> None:
+    """`> file` is how a step brings a path into existence, and it must be seen."""
+    assert sb._produces("printf 'x' > src/main.py", "src/main.py")
+    assert sb._produces("printf 'x' >> src/main.py", "src/main.py")
+    assert sb._produces("mkdir -p src", "src")
+    assert sb._produces("mkdir -p build src", "src")
+    assert sb._produces("mkdir src/", "src")
+    assert not sb._produces("cat src/main.py", "src/main.py")
+    assert not sb._produces("rm -rf src", "src")
+
+
+def test_paths_in_ignores_punctuation_only_tokens() -> None:
+    """A token that is punctuation once trimmed must not become a path.
+
+    `./` matches the path regex and then strips to nothing, so without the guard it
+    would register a path named `./` that no file will ever satisfy -- and the state
+    check would then refuse every step that touched a relative path.
+    """
+    # "./" trims to ".", which IS a real path -- the current directory -- so it is
+    # kept. Only a bare "./" with nothing after it is punctuation.
+    assert sb._paths_in("./ x") == {"."}
+    assert sb._paths_in("a/.") == {"a"}
+    assert sb._paths_in("y/,") == {"y"}
+    assert sb._paths_in("...") == set()
+    assert sb._paths_in("") == set()
+
+
+def test_mkdir_whose_operands_do_not_match_keeps_scanning() -> None:
+    """`mkdir` for something else must not stop the search, and must not match.
+
+    The loop has to survive an operand that is not the path and go on to the next
+    token, or a step that creates a directory and then writes a file inside it would
+    be judged as creating neither.
+    """
+    assert not sb._produces("mkdir -p build", "src/main.py")
+    assert sb._produces("mkdir -p build && printf x > src/main.py", "src/main.py")
+
+
+# --- undelivered state: prose is not evidence --------------------------------
+#
+# A step whose command became `cat > /dev/null` while its prose still said "Creates
+# src/main.py." SATISFIED the unshown-state check, because the next step
+# legitimately declares that file in its precondition. These three tests are the
+# reason `find_undelivered_state_changes` exists.
+
+
+def test_mutation_prose_claims_creation_the_command_does_not_make(
+    raw: dict[str, Any], tmp_path: Path
+) -> None:
+    """The gap the unshown-state check cannot see, and must not be asked to."""
+    mutated = copy.deepcopy(raw)
+    step = _step(mutated, "run-and-with", "create-main")
+    step["command"] = "cat > /dev/null"
+    step["creates_indirectly"] = ""
+
+    board, _ = _load(mutated, tmp_path)
+    assert sb.find_unshown_state_dependencies(board) == [], (
+        "precondition made this invisible to the unshown-state check, which is why "
+        "the separate undelivered check exists"
+    )
+    found = sb.find_undelivered_state_changes(board)
+    assert found, "a step that promises a file and does not make one was not reported"
+    assert any("src/main.py" in g.detail for g in found)
+
+
+def test_dropping_an_indirect_declaration_is_caught(
+    raw: dict[str, Any], tmp_path: Path
+) -> None:
+    """`uv init` really does create `pyproject.toml`, and the command cannot show it.
+
+    That is why the field is a DECLARATION a human can falsify by reading, rather
+    than a heuristic: inference produced 8 false positives on the real storyboard.
+    Remove the declaration and the promise is unbacked again.
+    """
+    mutated = copy.deepcopy(raw)
+    _step(mutated, "first-project", "init-project").pop("creates_indirectly")
+
+    board, _ = _load(mutated, tmp_path)
+    found = sb.find_undelivered_state_changes(board)
+    assert found, "an unbacked promise was not reported"
+    assert any("pyproject.toml" in g.detail for g in found)
+
+
+def test_a_declaration_naming_the_wrong_file_is_caught(
+    raw: dict[str, Any], tmp_path: Path
+) -> None:
+    """A declaration that does not name the promised file is not a declaration."""
+    mutated = copy.deepcopy(raw)
+    _step(mutated, "first-project", "init-project")["creates_indirectly"] = "requirements.txt"
+
+    board, _ = _load(mutated, tmp_path)
+    found = sb.find_undelivered_state_changes(board)
+    assert found, "a wrong declaration was accepted"
+    assert any("pyproject.toml" in g.detail for g in found)
+
+
+def test_a_promise_nothing_depends_on_is_documentation_not_a_gap() -> None:
+    """The check stays narrow on purpose, or it gets switched off.
+
+    `show-requires-python` describes what `init-project` produced. That is
+    documentation, and a check that fired on documentation would be a check an
+    author turns off within a week.
+    """
+    board, _ = sb.load(STORYBOARD)
+    for gap in sb.find_undelivered_state_changes(board):
+        assert "README.md" not in gap.detail, "a documented promise was reported as a gap"

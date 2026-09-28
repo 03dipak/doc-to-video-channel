@@ -36,6 +36,7 @@ __all__ = [
     "Step",
     "Storyboard",
     "find_elisions",
+    "find_undelivered_state_changes",
     "find_unshown_state_dependencies",
     "load",
     "required_fields",
@@ -97,6 +98,11 @@ class Step:
     common_failure: str
     replayable: bool = True
     replay_skip_reason: str = ""
+    #: Filenames this step creates as a SIDE EFFECT of a tool, which a command
+    #: cannot show: `uv init` writes `pyproject.toml` without naming it. Declared
+    #: rather than inferred, because inference produced 8 false positives on the
+    #: real storyboard. Empty string means "nothing indirect is claimed".
+    creates_indirectly: str = ""
 
     @property
     def expected_regex(self) -> re.Pattern[str]:
@@ -174,7 +180,7 @@ def _paths_in(text: str) -> set[str]:
     for match in _PATH_TOKEN.finditer(text):
         token = match.group(0)
         # Drop sentence punctuation, keeping interior dots (3.12, main.py).
-        token = token.rstrip("/").rstrip(".,;:")
+        token = token.rstrip(".,;:").rstrip("/")
         if not token or "://" in text[max(0, match.start() - 8) : match.start() + 1]:
             continue
         found.add(token)
@@ -260,6 +266,7 @@ def load(path: Path) -> tuple[Storyboard, list[Gap]]:
                     common_failure=fields["common_failure"],
                     replayable=bool(replayable),
                     replay_skip_reason=str(reason),
+                    creates_indirectly=str(s_raw.get("creates_indirectly", "")),
                 )
             )
         chapters.append(
@@ -329,11 +336,13 @@ def find_unshown_state_dependencies(board: Storyboard) -> list[Gap]:
         # thing whose job is to name a path the learner should now see. The command
         # is where a read happens, and a read is what needs a producer.
         referenced = _paths_in(step.command)
+        # A path the step itself creates is fine: it is shown being made. Note the
+        # asymmetry, which is deliberate -- a `state_change` promise may satisfy a
+        # LATER step (it is registered into `known` below), but it may not satisfy
+        # THIS step. Prose is a claim, and a claim is not evidence. See
+        # `find_undelivered_state_changes` for the check on the claims themselves.
         for path in sorted(referenced - known):
-            # A path the step itself creates is fine: it is shown being made.
-            if path in _paths_in(step.command) and _produces(step.command, path):
-                continue
-            if path in _paths_in(step.state_change):
+            if _produces(step.command, path):
                 continue
             found.append(
                 Gap(
@@ -349,17 +358,80 @@ def find_unshown_state_dependencies(board: Storyboard) -> list[Gap]:
 
 
 def _produces(command: str, path: str) -> bool:
-    """True when the command itself brings `path` into existence."""
+    """True when the command itself brings `path` into existence.
+
+    Two forms: a shell redirect, and `mkdir`. The `mkdir` form was DEAD until a
+    test caught it -- the first version tested `token.startswith("-p ")`, but
+    `mkdir -p src` splits into the tokens `mkdir`, `-p`, `src`, so no token ever
+    contains a space and the branch could not fire. That is the worst shape of bug
+    in a validator: it reads as if `mkdir` is handled, it is not, and nothing says
+    so.
+    """
     tokens = command.split()
     for index, token in enumerate(tokens):
         follows_redirect = token in {">", ">>"} and index + 1 < len(tokens)
         if follows_redirect and tokens[index + 1].rstrip("'\"").endswith(path):
             return True
-        if token.startswith("-p ") and token.endswith(path):
-            return True
+        if token == "mkdir":
+            for operand in tokens[index + 1 :]:
+                if operand.rstrip("/").rstrip("'\"").endswith(path):
+                    return True
     return False
+
+
+def find_undelivered_state_changes(board: Storyboard) -> list[Gap]:
+    """Promised state the command cannot be shown to deliver.
+
+    `state_change` is prose, and prose is what a model-written plan gets wrong. A
+    step whose command became `cat > /dev/null` while its prose still said "Creates
+    src/main.py." SATISFIES the unshown-state check, because the next step
+    legitimately declares that file in its precondition -- so without this check a
+    video could show a step claiming to create a file it never makes and every
+    other check would report clean.
+
+    **This deliberately does not infer tool side effects.** A first version tried,
+    and it fired on all 8 real promises in the storyboard -- every one a false
+    positive -- because `uv init` and `uv add` create `pyproject.toml` and `uv.lock`
+    without either filename appearing in the command. Only a redirect and `mkdir`
+    are visible in a command; the rest is the tool's business. A check that cannot
+    tell a tool's side effect from an omission is worse than none: it cries wolf
+    eight times and then gets switched off.
+
+    So indirect creation is DECLARED, in `creates_indirectly`. A promise with neither
+    a visible producer nor a declaration is reported, but only when a later step
+    actually depends on it -- a promise nothing uses is documentation, and a check
+    that fires on documentation is a check that gets disabled.
+    """
+    gaps: list[Gap] = []
+    for step in board.steps():
+        promised = _paths_in(step.state_change)
+        if not promised:
+            continue
+        visible = {p for p in _paths_in(step.command) if _produces(step.command, p)}
+        declared = _paths_in(step.creates_indirectly)
+        for path in sorted(promised - visible - declared):
+            depended_on = any(
+                path in _paths_in(other.command) for other in board.steps() if other is not step
+            )
+            if not depended_on:
+                continue
+            gaps.append(
+                Gap(
+                    "undelivered-state",
+                    step.id,
+                    f"`state_change` promises `{path}`, the command does not visibly create "
+                    f"it, and `creates_indirectly` does not name what does -- so a later step "
+                    f"depends on a file this step only claims to make",
+                )
+            )
+    return gaps
 
 
 def find_all(board: Storyboard, gaps: Sequence[Gap] = ()) -> list[Gap]:
     """Every check, in one call, so a caller cannot run a subset by accident."""
-    return [*gaps, *find_elisions(board), *find_unshown_state_dependencies(board)]
+    return [
+        *gaps,
+        *find_elisions(board),
+        *find_unshown_state_dependencies(board),
+        *find_undelivered_state_changes(board),
+    ]
