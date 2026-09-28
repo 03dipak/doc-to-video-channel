@@ -1451,6 +1451,68 @@ which is exactly why an unmeasured claim about it would have been false. The wai
 therefore shown honestly in the storyboard's `state_change` rather than silently
 sped up.
 
+### 12.5 Chaptered mode is the delivery shape (RULED, mentor, 2026-09-28)
+
+**The constant this breaks, measured.** A practical session at 3–5 minutes per
+chapter across 5 chapters is **15–25 minutes**. This design was built around a
+4-minute video with `MIN_SCENES = 5` and `TARGET_MAX_SCENES = 8`, and an install
+session with a prerequisites card, a checkpoint per step and a failure scene does
+not fit that budget — not marginally, and not by tuning. Five minutes is roughly
+**four spoken commands plus a checkpoint and a pause**; the `uv` storyboard's first
+chapter alone is four steps with three checkpoints.
+
+**RULED: the video is delivered in chapters, and the budget is per chapter.**
+
+| | was | is |
+|---|---|---|
+| delivery unit | one video, ~4 min | **a chapter**, 3–5 min |
+| total length | ~4 min | **15–25 min** across 5 chapters |
+| `MIN_SCENES` / `TARGET_MAX_SCENES` | per video | **per chapter** |
+| `TARGET_MINUTES` | per video | **per chapter** (~4), and the sum is the total |
+| `source_sections` coverage | per video | **per chapter** |
+
+**A chapter is a standalone unit and must work alone.** It states its **start
+state** at the top, and the learner can begin there without having watched the
+previous one. That is a hard requirement, not a convenience: a learner who
+arrives at chapter 3 from a search result has not seen chapters 1 and 2, and a
+chapter that assumes otherwise has a gap the coverage machinery cannot see — the
+`start_state` is the declaration that closes it, and it is the field
+`_unclaimed_source_sections` has no opinion about.
+
+**The five `uv` chapters are fixed by the storyboard**, and each maps to one
+delivery unit: install and verify, first project, add dependencies, lock and sync,
+run and `--with`.
+
+**Three consequences that are easy to miss.**
+
+1. **Coverage becomes per chapter, and so does the gate that now enforces it.** The
+   §12.3 ruling — every numbered concept claimed or the build refuses — is applied
+   **per chapter**. A 5-scene chapter that draws on 7 numbered concepts cannot
+   claim all 7, so the source document's concept list is partitioned across
+   chapters, and the storyboard's `start_state` is where the partition is recorded.
+2. **`AC#30`'s instruments become per chapter.** Loudness, caption geometry and the
+   word-boundary check are measured on each chapter's own artefact, and the
+   published file for the gate is the chapter's MP4. A gate reading a concatenation
+   would be a control on the wrong side of a boundary in exactly the way `A18` was
+   (see §12.2).
+3. **The cheat-sheet card and the chapter marker are load-bearing, not polish.** A
+   learner who joins at chapter 4 has no list of the commands from chapters 1–3, and
+   the session's promise — *follow only what is on screen and reach the stated end
+   state* — is only checkable per chapter if the chapter says where it begins.
+
+**What was deliberately NOT changed.** `MIN_SCENES` stays at 5 rather than dropping
+to 2 or 3 for a short chapter. A 3-scene chapter is a prerequisites card, one
+command and a checkpoint, and the honest minimum for "a learner can tell whether it
+worked" is five distinct beats. Lowering it to make a chapter fit would be tuning
+the gate to the artefact, which is the same error as widening a tolerance to absorb
+a mux (see §12.2).
+
+**Honest limitation:** this ruling changes the shape of the deliverable and the
+meaning of two constants. It does **not** re-measure the gate's own behaviour
+against a 25-minute plan, because no render has been produced at the new size. The
+first chapter render is the measurement, and if the scene budget or the duration
+estimator is wrong at this scale, that render will say so.
+
 ## 13. Acceptance criteria
 
 1. `doc-to-video-channel --help` prints usage listing all five declared verbs and

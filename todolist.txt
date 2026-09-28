@@ -13,21 +13,28 @@ Two things, in this order. Nothing else is blocked.
    but V-4 is not -- see "OPEN, AND IT BREAKS A CONSTANT".
 
 2. THEN: V-1, the render spike. It is ready now and needs nothing from anybody.
-     * The render path is the baseline's, not ours. The spike runs the baseline
-       tree at VENDOR_REF (today: a7d63e0, created by V0).
-     * Call the renderer API DIRECTLY: render_slide, build_tts_script,
-       synth_scenes, assemble_video. NOT the CLI -- through the CLI a plan that
-       passes `verify` is then BLOCKED by `render`, and a spike with no gate must
-       not go through one.
-     * It MUST call video._write_webvtt itself. That function is reachable only
-       from _render_media, which sits behind the gate the spike skips, so without
-       it the artefact carries no .vtt at all.
-     * 5 scenes, not 1. MIN_SCENES is 5 and the gate refuses fewer in BOTH
-       branches. "One scene" is unreachable and was corrected.
-     * The plan is a FIXTURE and must be labelled one. The gate checks
-       source_refs for PRESENCE, not resolution, so a plan can point at nothing and
-       still pass. A green render whose provenance points at an invented file is
-       worse than no render, because it looks like evidence.
+     RECIPE, recovered from the baseline's own render branch and re-measured:
+       * Build a FIXTURE plan.json with 5 scenes. 5, not 1: MIN_SCENES is 5 and the
+         gate refuses fewer in BOTH branches.
+       * script = speech.build_tts_script(plan, voice)
+       * cli._render_media(plan, out_base, script, voice, skip_video=False,
+         pause=..., end_hold=...)
+       * That is the whole spike. _render_media is the render path: it calls
+         render_scenes, synth_scenes, writes .word_timings.json, calls
+         _write_webvtt, keeps the audio clips and assembles the video.
+       * WHY _render_media and not the CLI, and why not a hand-rolled sequence:
+         the GATE (_render_blocking_problems) is called in the CLI branch, NOT
+         inside _render_media. So calling it directly bypasses the gate and keeps
+         the entire render path including _write_webvtt. Reimplementing the five
+         calls by hand would be a second implementation to keep correct.
+       * The fixture MUST be labelled. The gate checks source_refs for PRESENCE,
+         not resolution, so a plan can point at nothing and still pass. A green
+         render whose provenance points at an invented file is worse than no
+         render, because it looks like evidence.
+       * Instruments to record: published-MP4 loudness (D2's band), the .vtt cue
+         count, the word-timing token count, and the narration containing the tool
+         name. Caption geometry is NOT measurable until the burn-in stage lands
+         (D1, V5) -- record it as blocked, not as passing.
 
 
 =============================================================================
@@ -48,18 +55,47 @@ pass `mypy tests` cleanly, so the V6 delta stays attributable.
 
 
 =============================================================================
-OPEN, AND IT BREAKS A CONSTANT -- THE OWNER'S CALL
+RULED: CHAPTERED MODE IS THE DELIVERY SHAPE (mentor, 2026-09-28)
 =============================================================================
-CHAPTERED MODE. 3-5 min per chapter x 5 chapters = 15-25 min. This design was
-built around a 4-minute video with MIN_SCENES=5 and TARGET_MAX_SCENES=8. An
-install session with a prerequisites card, a checkpoint per step and a failure
-scene does NOT fit that budget -- not marginally.
+3-5 min per chapter x 5 chapters = 15-25 min, against a design built around a
+4-minute video. An install session with a prerequisites card, a checkpoint per step
+and a failure scene does NOT fit that budget -- not marginally, and not by tuning.
+Five minutes is roughly four spoken commands plus a checkpoint and a pause; the uv
+storyboard's FIRST chapter alone is four steps with three checkpoints.
 
-What has to change: TARGET_MINUTES, and the scene budget, which becomes per
-CHAPTER rather than per video. Chaptered mode becomes the delivery shape.
+  delivery unit      one video ~4 min   ->  a CHAPTER, 3-5 min
+  total length       ~4 min              ->  15-25 min across 5 chapters
+  scene budget       per video           ->  PER CHAPTER
+  TARGET_MINUTES     per video           ->  per chapter (~4); the sum is the total
+  source coverage    per video           ->  per chapter
 
-Better decided now than when plan_lesson refuses a legal-looking plan at V4 and
-the failure looks like a bug in the plan rather than a budget that never fitted.
+A CHAPTER IS STANDALONE and must work alone: it states its start_state at the top,
+and a learner arriving from a search result has not seen chapters 1-3. start_state
+is the declaration that closes that gap, and _unclaimed_source_sections has no
+opinion about it.
+
+THREE CONSEQUENCES THAT ARE EASY TO MISS:
+  1. Coverage is now per chapter, so the 12.3 ruling (every numbered concept claimed
+     or the build refuses) applies PER CHAPTER. A 5-scene chapter cannot claim 7
+     concepts, so the document's concept list is PARTITIONED across chapters and
+     the partition is recorded in each chapter's start_state.
+  2. AC#30's instruments become per chapter: loudness, caption geometry and the
+     word-boundary check each run on that chapter's own artefact. A gate reading a
+     concatenation is a control on the wrong side of a boundary, in exactly the way
+     A18 was (see 12.2).
+  3. The cheat-sheet card and the chapter marker are load-bearing, not polish. A
+     learner joining at chapter 4 has no list of chapters 1-3's commands.
+
+MIN_SCENES STAYS AT 5, deliberately. A 3-scene chapter is a prerequisites card, one
+command and a checkpoint; the honest minimum for "a learner can tell whether it
+worked" is five distinct beats. Lowering it to make a chapter fit would be tuning
+the gate to the artefact -- the same error as widening a tolerance to absorb a mux.
+
+HONEST LIMITATION: this changes the shape of the deliverable and the meaning of two
+constants. It does NOT re-measure the gate against a 25-minute plan, because no
+render exists at the new size. The first chapter render is the measurement, and if
+the scene budget or the duration estimator is wrong at this scale, that render
+will say so.
 
 
 =============================================================================
