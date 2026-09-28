@@ -520,8 +520,14 @@ after the whole copy, and never before. **So a spike comes first.**
 criterion, not a reader criterion:** `_truncate_on_boundary` is a `str → str`
 function in this step's `util.py`, and its two properties — the cut never ends
 mid-token, and the cut uses at least half the window it was given — are falsifiable
-on a synthetic source today. `AC#17`(b), the corpus figure, belongs to the step
-that carries `A5` |
+on a synthetic source today. **This step also carries `A5`, the `.docx` reader**,
+and *v010 left that unplaced* — this row and `AC#17`(b) both said "the step that
+carries `A5`" and **no step in this table did**: a forward reference to a step
+with no number, which is `DOCS.md` rule 8 inverted. It is **V1** because
+`load_documents` arrives here (§5.1 row 14) and `A5` extends that same function,
+so placing it later would mean shipping a reader that raises
+`UnicodeDecodeError` on `.docx` and calling the tree green. **`AC#17`(b)
+therefore unblocks at V1**, and its measured population is below |
 | **V2** | `topics.py`, `schema.py` — 211 lines | the two Pydantic models validate; `AC#6`'s Devanagari case reaches the validator |
 | **V3** | `BRAND_NAME` / `BRAND_FOOTER` — **2 lines** | one scene rendered, frames sampled, old brand absent and new brand present. `PACKAGE_NAME` renders on **100% of runtime frames**, so copying it verbatim is *correct* per §5.5 and invisible in a 17k-line diff — which is why it is its own commit |
 | **V4** | `plan.py` — 2,505 lines, alone | **carries §5.6's harness in the same commit**, not after it: the harness's purpose is to run `plan_lesson`, and `plan_lesson` arrives *with* V4, so gating V4 on the harness is circular |
@@ -1157,8 +1163,9 @@ fabricated date pass a 315-test suite.
 | **practical-step completeness** | every practical scene carries purpose, action, expected result, recovery | a scene with a command and no **recovery** must fail. A valid scene is not "a command on screen" |
 | **environment applicability** | each command scene's manifest | a command valid for `bash` rendered in a `target_os: windows` manifest must fail |
 | **the V-1 spike** | one rendered scene, **measured four ways** (§5.4) | an `ebur128` result outside the target ± a stated tolerance must **fail**; a narration transcript missing the tool name, or missing a matching `WordBoundary` token, must **fail**. **Instruments 1 and 2 are UNAVAILABLE and are not yet rewritten** — see the note under §5.4. *v008's witness cell was a verbatim copy of its approach cell, and the four adjectives had no instrument; two of the four replacements also have none* |
-| **caption text-fit** *(replaces instrument 1, pending the owner's caption decision)* | every cue in the produced `.vtt` against `_VTT_CUE_WORDS` and a declared on-screen line width at 1280 px | a cue over the word ceiling, or over the declared line width, must **fail**. *Measured headroom: the max cue across 807 cues in 19 files is 8 words, so this can still fail* |
-| **panel geometry** *(replaces instrument 2, pending the same decision)* | two boxes `render_slide` already computes, compared in the auditor | an overlapping pair must **fail**. *The command panel is measurable — x 50–1230, y 292–358 — and matches the renderer's own geometry; `LAYOUT_NOTES` is the existing note channel, and a note is not a refusal, so if this must block it needs a new refusal rather than a note* |
+**WITHDRAWN 2026-09-28 by the mentor ruling in §12.2.** Both rows were placeholders written to keep §12 looking covered while instruments 1 and 2 had nothing to measure. The ruling is to **burn captions in**, which restores both as real pixel measurements, so these substitutes are no longer needed. *Kept in the changelog rather than deleted silently, because the reason they existed — "2 of 4 instruments cannot fail" — is the finding worth keeping.*
+| ~~caption text-fit~~ | ~~every cue against `_VTT_CUE_WORDS`~~ | **WITHDRAWN** — burn-in makes the real glyph measurement available |
+| ~~panel geometry~~ | ~~two boxes `render_slide` computes~~ | **WITHDRAWN** — the real caption/command bbox disjointness check supersedes it |
 | **brand string** | one rendered scene, frames sampled | the old brand string is absent and the new one present. `PACKAGE_NAME` renders on 100% of frames, and V3 is a 2-line change |
 | **test vendoring** | the collection report | it shows the expected count **and** the run count. Tests that are copied but silently skipped are invisible otherwise |
 | **static** | `ruff check src tests` and `mypy src` clean | configured in Phase 0, so this is a real check and not `All checks passed!` over an empty tree |
@@ -1195,9 +1202,11 @@ question: *should a tutorial video carry burned-in captions?*
   ceiling, and panel geometry between two boxes the renderer already computes. These
   are computable today and are the two rows §12 now carries provisionally.
 
-Both rows are marked *pending the owner's caption decision* and **neither is
-`AC#30`'s gate today**: `AC#30` is satisfied on instruments 3 and 4 plus whatever the
-caption decision yields.
+*Both rows below are now **WITHDRAWN** — see §12.2. The caption decision is
+RULED: burn them in, which restores instruments 1 and 2 as real pixel
+measurements, so these two substitutes are obsolete. `AC#30` is gated on all four
+instruments, and instruments 1–2 are unblocked by the ruling rather than by the
+provisional rows.*
 
 **One measured correction to the loudness instrument, and it is a real finding.**
 `A18` gates the **pre-mux clip**, not the published file. Measured: per clip
@@ -1209,7 +1218,13 @@ pre-mux **−16.1..−16.0 LUFS / −1.5 dBTP**; the assembled MP4 **−16.5 LUF
 file is what ships, the gate's reading point should be the published file;
 otherwise the band must be wide enough to absorb the mux, and **a wide band is a
 weaker gate** — the same shape as `AC#26`, a control on the wrong side of the
-boundary. *Stated as a finding, not resolved here.*
+boundary. **RESOLVED in §12.2: the gate moves to the published file, integrated
+is −16.0 ±1.0 LU, and true peak is a ≤ −1.5 dBTP ceiling rather than a band.**
+*Left here as written on the day it was measured, with its own figures
+(−16.5 / −5.2 for the assembled clip, −16.6..−16.7 for the four best delivered),
+because §12.2 re-measured a single named file and got −16.7 / −5.1 from it — a
+different file, not a contradiction. Overwriting the older measurement with the
+newer one would have destroyed the range.*
 
 ### 12.1 Exit codes, and why a not-yet-built verb is not a usage error
 
@@ -1247,6 +1262,64 @@ returns 1, and 4 needs `write_media`. `0`, `2` and `3` are the only codes
 exercised by the suite, and 12 tests cannot tell a reader that 1 and 4 mean what
 this table says. **No code may be added to this table without a test that reaches
 it**, which is the same rule §12's rows follow.
+
+### 12.2 The caption decision, and the loudness band
+
+Both were owner decisions in v010 and both are **RULED (mentor, 2026-09-28)**.
+They are recorded here rather than in the changelog alone because each one
+changes what `AC#30` measures.
+
+**Captions are burned in.** Measured: a published MP4 carries **2 streams**
+(`h264,video` + `mp3,audio`) and **no subtitle track**; **0** files in `src/`
+contain burn-in, subtitle-mux, ASS/SSA or `drawtext`; and **0 of 14** produced
+`.vtt` files contain a `::cue` or `STYLE` block. So the baseline produces a
+caption file and attaches it to nothing, and the frame carries no glyphs for an
+auditor to measure.
+
+The ruling is burn-in rather than muxing a soft subtitle track, and the reason is
+evidential: **the frame is the only artefact this project can inspect**, and
+"rendered pixels" is the only evidence channel `AGENTS.md` grants
+`graphic-reviewer`. A soft track stays outside every evidence channel here, which
+is the same reason the two instruments could not fail in the first place. Soft
+subtitles also leave the sound-off mobile viewer, which is the common case for a
+tutorial.
+
+**Cost, stated rather than buried:** this is a new render stage, and it must cross
+**both** renderers — `pptx.py` and `slides.py` — which `AGENTS.md` records as
+where a fix has silently missed the other one four times. It lands in **V5**, with
+the rest of the render path, and it is the *first* thing to check when a
+rendered frame shows captions on one output and not the other.
+
+**Consequence:** `AC#30`'s instruments 1 and 2 are restored as pixel
+measurements, and the two provisional rows in §12 (caption text-fit, panel
+geometry) are **withdrawn** — they were placeholders for instruments that had
+nothing to measure, and keeping them alongside the real ones would make §12 look
+better-covered than it is.
+
+**The loudness gate moves to the published file, and gets a stated band.**
+`A18` reads the **pre-mux clip**. Re-measured 2026-09-28 on
+`output/mod03_gates_v013.mp4`:
+
+| point | integrated | true peak |
+|---|---|---|
+| published MP4 | **−16.7 LUFS** | **−5.1 dBFS** |
+| pre-mux, per clip | −16.1 .. −16.0 LUFS | −1.5 dBTP |
+| `config` target | −16.0 (`LOUDNESS_TARGET`) | −1.5 dBTP (`LOUDNESS_TP`) |
+
+The published file sits **0.7 LU** below target, so a gate reading the other side
+of the mux boundary is reading a different measurement than the one that ships —
+**the same defect as `AC#26`, a control on the wrong side of the boundary.**
+`A18` therefore moves to the published file, and the band is stated rather than
+left implicit:
+
+- integrated: **−16.0 ±1.0 LU**, so the measured −16.7 passes and a clip at
+  −14.0 or −18.0 fails. The band is standard and is not a rubber stamp.
+- true peak: a **ceiling of ≤ −1.5 dBTP, not a band.** Being quieter than the
+  ceiling is not a defect, so a two-sided band would manufacture one. Measured
+  −5.1, comfortably under.
+
+Both targets stay env-overridable, which is why the *configured* value is not
+sufficient evidence and the *measured* one is quoted above.
 
 ## 13. Acceptance criteria
 
@@ -1348,7 +1421,7 @@ it**, which is the same rule §12's rows follow.
     A golden check over the 18-document corpus pins the
     **post-`_truncate_on_boundary`** admitted count, not the document-level count,
     because a golden file storing the document-level number passes while the
-    pipeline's number is wrong. **Blocked on `A5`**, and checkable at the step that
+    pipeline's number is wrong. **Unblocked at V1**, which carries `A5` (see the V1 row), and checkable there
     carries it. What is measurable today, without the reader, is in §14.6.
 18. **The drop column is enforced, over a stated population.** Row 17's symbols
     **excluding `main`** (6: `TUTOR_PROMPT`, `generate_lesson`, `text_to_audio`,
@@ -1414,7 +1487,9 @@ it**, which is the same rule §12's rows follow.
 29. **Every practical scene carries purpose, action, expected result and recovery**,
     and the environment manifest names target OS, shell, version policy,
     prerequisites and source freshness.
-30. **The V-1 spike has been run and its four measurements recorded**: minimum
+30. **The V-1 spike has been run and its four measurements recorded**, with the
+    caption gate reading the **published** file and the loudness band the stated
+    ±1.0 LU / ≤−1.5 dBTP (§12.2): minimum
     caption glyph height at 720p, **disjoint** caption and command-panel bounding
     boxes, `ebur128` within the `A18` target ± a stated tolerance, and a narration
     transcript containing the tool name with a matching `WordBoundary` token.
@@ -1453,10 +1528,15 @@ terminates the document review cannot be one that only running code can satisfy.
 **Document review is gated on 1a and 2–6. 1b is a V7 condition, not a
 document-review condition.**
 
-**1a is nearly met and is not met.** Still unnamed after this pass: `AC#3` ("the
-gate" names no command), `AC#7` (no reachability row), `AC#17` (no row, and its
-precondition `A5` is in no build step), `AC#33`'s third clause (satisfied by prose
-that already exists, so it cannot fail), and `AC#26`'s `publish` subcommand.
+**1a was nearly met and was not met.** As of v010: `AC#3` ("the gate" names no
+command), `AC#7` (no reachability row), `AC#33`'s third clause (satisfied by prose
+that already exists, so it cannot fail). *`AC#17`'s row and `AC#26`'s `publish`
+subcommand are now closed — `AC#17` split into (a), which V1 owns on a synthetic
+source, and (b), which V1 also owns now that `A5` is placed there; `publish` was
+withdrawn and its control moved to `write_media`. Both were open when the review
+that produced this paragraph was written, and leaving the paragraph claiming they
+were open would be the review citing its own correction as pre-existing — the
+second time in this file.*
 
 **Condition 6 is `AC#30`, and `AC#30` had no falsifier** — which the round-7
 reviewer found by observing that §12's V-1 row's witness cell was a verbatim copy

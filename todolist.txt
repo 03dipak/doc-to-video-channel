@@ -1,0 +1,119 @@
+doc-to-video-channel -- TODO
+============================
+Written 2026-09-28. Re-measure before citing any number in here; a status
+bullet is a measurement, not a setting. See AGENTS.md.
+
+STATE: 1 of 33 ACs met. 0 of 8 build steps done. 72 LOC src, 146 LOC tests.
+Phase 0 landed (0394541). Gate green: exit 0, 12 tests, 100% of 19 statements.
+A green gate is not a working CLI -- all five verbs are declared and all five
+exit 3. The pipeline is not vendored until V1-V5.
+
+GATE (this project's own, not the engine's):
+  .venv/bin/ruff check src tests && .venv/bin/mypy src && .venv/bin/pytest
+  Shown to have teeth 2026-09-28: each tool was fed a violation it is
+  configured to see, and all three reported it. `mypy src` is kept because the
+  vendored tests carry 74 errors in 7 files; widening it breaks at V6.
+
+
+OWNER DECISIONS -- both RULED by mentor 2026-09-28
+----------------------------------------------------
+D1. CAPTIONS: BURN THEM IN.
+    Evidence: a published MP4 carries 2 streams (video, audio) and no subtitle
+    track; 0 files in src/ contain burn-in, subtitle-mux or drawtext; 0 of 14
+    produced .vtt files contain a ::cue or STYLE block. The .vtt is produced
+    and attached to nothing. A caption that is not in the pixels has no glyph
+    height and no bounding box, so AC#30's instruments 1 and 2 were comparing
+    a measurable thing to an unmeasurable one and could not fail.
+    Why burn-in over muxing a soft track: the frame is the only artefact the
+    auditor can inspect, and "rendered pixels" is the only evidence channel
+    this project gives graphic-reviewer. Soft subtitles stay outside all of them.
+    Cost, stated not hidden: a new render stage that must cross BOTH renderers
+    (pptx.py and slides.py), which per AGENTS.md is where a fix has silently
+    missed the other one four times.
+    Consequence: AC#30 instruments 1 and 2 are restored as pixel measurements
+    and the two provisional rows in the section 12 table are withdrawn.
+
+D2. LOUDNESS: GATE THE PUBLISHED FILE, not the pre-mux clip.
+    Evidence, re-measured 2026-09-28 on output/mod03_gates_v013.mp4:
+      published MP4      -16.7 LUFS,  -5.1 dBFS true peak
+      pre-mux per clip   -16.1..-16.0 LUFS, -1.5 dBTP
+      config target      -16.0 LUFS (LOUDNESS_TARGET), -1.5 dBTP (LOUDNESS_TP)
+    A18 reads the pre-mux clip, so its reading point is on the wrong side of
+    the mux boundary -- the same defect as AC#26, a control on the wrong side.
+    Band: integrated +/-1.0 LU (published measures -0.7, so it passes and the
+    band is not vacuous). True peak is a CEILING of <= -1.5 dBTP, not a band:
+    being quieter than the ceiling is not a defect, so a two-sided band would
+    invent one. Published measures -5.1, comfortably under.
+
+
+FIXED THIS CYCLE (mentor-proceeded, not left open)
+--------------------------------------------------
+F1. A5 DANGLING REFERENCE -- this was a defect I introduced in 4dfe02f.
+    V1's done-when and AC#17(b) both forward-referenced "the step that
+    carries A5", and no step in section 5.5 carried A5. That is a forward
+    reference to a step that does not exist -- the exact DOCS.md rule 8
+    violation fixed elsewhere in the same commit.
+    Ruling: A5 lands in V1. load_documents arrives in V1 (util.py, section 5.1
+    row 14) and A5 extends that same function, so it is a change to a file V1
+    already copies. Placing it in a later step would mean shipping a reader that
+    raises UnicodeDecodeError on .docx and calling the tree green.
+    Consequence: V1 carries A5, and AC#17(b) unblocks at V1 rather than
+    hanging on a step with no number.
+
+
+TODO -- BUILD ORDER (0 of 8 done)
+---------------------------------
+[x] V-1   SPARK: 5-scene uv render, model-free, direct renderer API (NOT the
+          CLI -- through the CLI a plan that passes verify is then BLOCKED by
+          render, and a spike with no gate must not go through one). Must call
+          video._write_webvtt itself; that is reached only from _render_media,
+          behind the gate the spike skips. Closes the start of AC#30.
+[ ] V0    section 5.1 table + vendor_manifest.json + the tree's first commit.
+          Closes AC#33. Creates VENDOR_REF, which does not exist yet -- 0
+          occurrences in the baseline, value today is a7d63e0.
+[ ] V1    util.py + text.py + config.py -- 955 lines. THREE zero-internal-import
+          modules, so this step is importable before anything else exists.
+          Plus A5 (the .docx reader, per F1). Closes AC#17(a) and (b).
+          Must not silently truncate: 2 properties, falsifiable on a synthetic
+          source today.
+[ ] V2    topics.py + schema.py -- 211 lines. Closes AC#6 (Devanagari
+          `section` rejected, Latin accepted), AC#7 (SectionKind is a type and
+          the schema enforces it -- fixes the two-spelling defect).
+[ ] V3    BRAND_NAME + BRAND_FOOTER -- 2 lines. Closes AC#31. PACKAGE_NAME must
+          render on 100% of runtime frames.
+[ ] V4    plan.py -- 2,505 lines, ALONE. Carries section 5.6's harness IN THE
+          SAME COMMIT, not after it: the harness's purpose is to run
+          plan_lesson, and plan_lesson arrives with V4, so gating the harness
+          separately would gate a function that does not exist yet.
+          Closes AC#18-#24.
+[ ] V5    the remaining 10 modules -- 9,326 lines -- PLUS write_media, the
+          fixture-refusal chokepoint that both render call sites reach. This is
+          where the withdrawn `publish` verb's control now lives. Closes
+          AC#25, AC#26, AC#13.
+[ ] V6    the 7 test files, import-rename only. Closes AC#32 -- the collection
+          report must show the expected count AND the run count, so a silently
+          skipped file is visible.
+[ ] V7    the seam (Phase 1): behavioural differential, ownership audit, the
+          two renderers x every SectionKind.
+
+
+DO NOT REINTRODUCE
+------------------
+* `publish` subcommand. Withdrawn 2026-09-28. A verb nobody is obliged to run
+  gates nothing, and re-reading a manifest to print a verdict is `verify` under
+  a second name. Its control is write_media. A test fails if it returns.
+* A second entry point. P0-d: one. Do not add a deprecated console-script shim
+  the way the baseline does.
+* `mypy src` widened to `tests` before V6 -- it breaks on 74 vendored errors.
+* An exit code added to the section 12.1 table without a test that reaches it.
+  Three of five codes are currently unreachable; 0, 2 and 3 are the tested ones.
+
+
+FILE:LINE IS A SEARCH HINT WITH A SHELF LIFE
+---------------------------------------------
+Cite symbols. The engine's CALL-FLOW.md has 51 unique anchors, none pointing
+at the right line (median drift -813 lines). A doc that tracks another doc must
+be re-read after that doc is edited, or it will cite its own change as
+pre-existing -- which happened twice in this file's own history today: AGENTS.md
+and LLD AC#2 both asserted a status that was true when written and false within
+the hour.
