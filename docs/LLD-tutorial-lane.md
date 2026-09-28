@@ -914,8 +914,10 @@ Two requirements, and the second is the one that makes the first worth doing:
 - **something reads it and refuses a non-publishable artefact.**
 
 **v008 named that something "the release step", and no such step exists.** Measured:
-the CLI declares exactly five subcommands — `build`, `review`, `tts`, `verify`,
-`render`. There is no `release` and no `publish`, and `REQUIREMENTS.md` §4's
+the CLI declares exactly five subcommands — `build`, `review`, `tts-check`,
+`verify`, `render`. *v010 wrote `tts`; the parser at `cli.main` registers
+`tts-check`, and the difference is load-bearing for any wrapper that shells out —
+measured from the parser's own `usage:` line, not from a prose list.* There is no `release` and no `publish`, and `REQUIREMENTS.md` §4's
 "release gate" is seven **human** checks that its own text calls *"a reading, not a
 configuration"*. A criterion that names a non-existent component is satisfiable by
 writing the sentence — which is the defect `FR-028`'s own cell names: *"a
@@ -1209,13 +1211,75 @@ otherwise the band must be wide enough to absorb the mux, and **a wide band is a
 weaker gate** — the same shape as `AC#26`, a control on the wrong side of the
 boundary. *Stated as a finding, not resolved here.*
 
+### 12.1 Exit codes, and why a not-yet-built verb is not a usage error
+
+Phase 0 had to choose a code for a verb that is declared but unbuilt, and the
+choice is design rather than bookkeeping: it is the same distinction the
+mentor ruling on `write_media` rests on, that a wrapper must not have to parse
+message text to tell what happened.
+
+| code | meaning | who sets it |
+|---|---|---|
+| **0** | success | — |
+| **1** | a gate refused the work (blocking problems, a failed check) | the pipeline |
+| **2** | **usage error** — an unknown verb, a missing verb, bad flags | `argparse` |
+| **3** | **declared but not built** | the entry point |
+| **4** | **refused on purpose** — `--test-fixture` content, a blocklisted source | `write_media` (V5) |
+
+Three codes are worth defending over the other two.
+
+**Why 3 is not 2.** A declared verb that is not built yet is not a typo, and
+folding it into `argparse`'s 2 makes a legitimate request indistinguishable from
+a misspelling. Every one of the five verbs currently exits 3, and a wrapper
+branching on `2` versus `3` can tell "you mistyped" from "this is not written
+yet" without reading `stderr`.
+
+**Why 4 exists at all, when 1 looks like it would do.** It does not. `1` is the
+code a *gate* uses, and a caller that treats every non-zero as "retry or
+escalate" will retry a refusal that is a standing policy, not a transient
+condition. `AC#26` was the case that forced this: the refusal is a deliberate,
+permanent property of the input, so it gets a code that is not the failure code.
+`write_media` raises `SystemExit(4)`, and **that is a number reserved before the
+writer exists**, so V5 cannot quietly take 1 or 2.
+
+**What this costs.** Three of these five codes are not reachable today: no code
+returns 1, and 4 needs `write_media`. `0`, `2` and `3` are the only codes
+exercised by the suite, and 12 tests cannot tell a reader that 1 and 4 mean what
+this table says. **No code may be added to this table without a test that reaches
+it**, which is the same rule §12's rows follow.
+
 ## 13. Acceptance criteria
 
-1. `doc-to-video-channel --help` prints usage. **It currently prints a greeting
-   and exits 0** — the entry point is a stub that ignores `argv`.
+1. `doc-to-video-channel --help` prints usage listing all five declared verbs and
+   **exits 0**. **Now met** (measured 2026-09-28): it exits 0 and its usage names
+   `build`, `review`, `tts-check`, `verify`, `render`. *It was false when written:
+   the stub ignored `argv`, so `--help` printed "Hello from
+   doc-to-video-channel!", an unknown verb **exited 0**, and bare invocation
+   **exited 0** — a silent zero. The gate could not see any of this, because
+   `ruff` and `mypy` do not know a CLI contract.*
 2. `ruff check src tests`, `mypy src` and `pytest` are all configured and all pass
    — and `pytest` collects more than zero tests. The type gate is `mypy src` by
-   decision; the vendored tests sit outside it deliberately (§5.4).
+   decision; the vendored tests sit outside it deliberately (§5.4). **Now met**,
+   measured 2026-09-28 as **exit 0, 12 tests passed, 100% of 19 statements and 2
+   branches**. *It was false when written: there was no `tests/` directory, so
+   `ruff` exited 1 with `E902` and `pytest` reported `no tests collected`.*
+
+   **The gate was then shown to be capable of failing, in both directions.** Each
+   tool was fed a violation it is configured to see: `ruff` an unused import,
+   `mypy` an untyped `def` under `src/`, `pytest` an `assert 1 == 2` in a
+   `test_*.py`. All three reported it. The first attempt at this check was itself
+   wrong and is worth recording: the file was named `_teeth_check.py`, which
+   matches neither mypy's nor pytest's discovery, so **two of the three tools
+   reported success over a file that had not been read at all** — a green gate
+   over an unexamined file, which is the exact failure class of §1.
+
+   **`mypy src` is kept, and the gap it leaves is deliberate.** Measured: `mypy
+   tests` reports **0 errors on the channel's own tests** while the same command
+   reports **2 errors** in a deliberately-broken one, so the tests here are typed
+   and stay typed. But the vendored seven carry **74 errors in 7 files** (§5.4),
+   so widening the gate to `tests` would buy 6 of those 7 files' worth of signal
+   today and **break at V6**. The 0/74 split is recorded so that, when V6 lands,
+   the new number is attributable to the vendored files alone.
 3. A fresh clone resolves with `uv sync` and runs the gate.
 4. Two `TopicProfile` values produce two different scene plans from one source.
 5. **The behavioural differential passes**: a defaults-only profile reproduces

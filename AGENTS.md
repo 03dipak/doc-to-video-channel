@@ -105,12 +105,20 @@ second failure, and it is worthless if it starts relaying the others' findings.
 
 ## Facts that will bite you
 
-- **There is no code here yet.** `src/doc_to_video_channel/__init__.py` is one
-  66-byte stub, there is no `tests/` directory, and the gate is this project's own:
-  `.venv/bin/ruff check src tests && .venv/bin/mypy src && .venv/bin/pytest`.
-  `ruff check src tests` **currently exits 1** with `E902 No such file or
-  directory` because `tests/` does not exist, and `pytest` reports `no tests
-  collected` — so `AC#2` fails today and Phase 0 has three items, not two.
+- **Phase 0 is landed, so the gate is green and has teeth — but the package is
+  still nearly empty.** The gate is this project's own:
+  `.venv/bin/ruff check src tests && .venv/bin/mypy src && .venv/bin/pytest`,
+  measured 2026-09-28 as **exit 0, 12 tests passed, 100% of 19 statements**. The
+  19 statements are a real population, not a placeholder: `src/doc_to_video_channel/__init__.py`
+  is an argument parser that declares five verbs and **builds none of them**, so
+  every verb exits 3. *The bullet this replaces said `ruff` exited 1 and `pytest`
+  collected nothing — that was true when written and false within the hour. A
+  status bullet in this file is a measurement, not a setting; re-measure before
+  citing it.*
+- **A green gate is not a working CLI.** All five verbs are declared and all five
+  exit 3. `build`, `review`, `tts-check`, `verify` and `render` do nothing yet, and
+  the pipeline they will call is not vendored until V1–V5. Do not read "Phase 0
+  complete" as "the tool runs".
 - **`.venv` is a real venv, and it cannot import the engine.** There is no
   dependency on `doc-to-video-tutor` — `uv.lock` holds 0 references, and that is
   deliberate (owner ruling 2026-09-28, `docs/LLD-tutorial-lane.md` §14.1). The

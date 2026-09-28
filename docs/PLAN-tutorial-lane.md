@@ -95,7 +95,7 @@ ffmpeg  8.0.1-3ubuntu2
 
 Four phases. Each has a done-when that is a reading, not a configuration.
 
-### Phase 0 — make the project runnable
+### Phase 0 — make the project runnable — **LANDED 2026-09-28**
 
 *Nothing below can be verified until this is done.*
 
@@ -105,7 +105,7 @@ Four phases. Each has a done-when that is a reading, not a configuration.
 | **P0-b** | add the four missing `[tool.*]` blocks: `tool.ruff`, `tool.mypy`, `tool.pytest.ini_options`, `tool.coverage.run` | all four are **absent** (measured). Six dev tools are installed and none configured: `ruff check .` reported `All checks passed!` and `pytest --co` reported `no tests collected` over a 66-byte file. That is a green gate over nothing — the failure class `docs/scratch.md` §1 records. |
 | **P0-c** | ~~path-depend on the engine~~ **CANCELLED 2026-09-28** — the owner ruled the baseline is a *reference only*. Nothing here imports, installs or pins `doc-to-video-tutor`; `uv.lock` holds **0** references to it. The pipeline is vendored into this package instead, which is what makes §4's seam reachable at all. |
 | **P0-d** | **one** build entry point in this package, taking `argv` | the baseline keeps a second, deprecated console-script shim. Since nothing here invokes a console script by name, that second path **does not exist** in the channel — which is the outcome, and it is reached by construction rather than by a convention the baseline's own comment shows has already failed once. |
-| **P0-e** | **create `tests/` and write the first test** | `AC#2` requires `ruff check src tests`, `mypy src` and `pytest` all passing **and `pytest` collecting more than zero tests**, and it fails today on both counts: `ruff` exits 1 with `E902 No such file or directory` because `tests/` does not exist, and `pytest` reports `no tests collected` (both measured). `pyproject.toml`'s own P0-b block already argues for this — *"a green gate over nothing is the failure class `docs/scratch.md` §1 records"* — and the missing item is the directory and one real test. **This is why Phase 0 has three items and not two** |
+| **P0-e** | **create `tests/` and write the first test** | `AC#2` requires `ruff check src tests`, `mypy src` and `pytest` all passing **and `pytest` collecting more than zero tests**, and it fails today on both counts: `ruff` exits 1 with `E902 No such file or directory` because `tests/` does not exist, and `pytest` reports `no tests collected` (both measured). `pyproject.toml`'s own P0-b block already argues for this — *"a green gate over nothing is the failure class `docs/scratch.md` §1 records"* — and the missing item is the directory and one real test. **This is why Phase 0 has three items and not two. **All four items (a, b, d, e) are now done and the gate is green** — see the status line on this heading. `P0-c` remains cancelled, so Phase 0 is four of five** |
 
 ### Phase 1 — the seam
 
