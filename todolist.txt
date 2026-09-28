@@ -24,6 +24,23 @@ NEXT SESSION (OWNER'S REQUEST): build the command for `source/uv.md`.
   is authoring (citations/takeaways/reworded repeats), not code. Author the
   citations against the source document, then render default (no override).
 
+  THE TWO TRACKS TO A FIRST VIDEO, AND WHERE THE TIME GOES (owner asked; answer
+  recorded so tomorrow starts without re-deriving it):
+  - TRACK A -- make the storyboard SHIPPABLE (hours of authoring, no code): the 7
+    unanchored scenes need citations matched from sources/uv-getting-started.md,
+    takeaways need authoring, 5 narrated repeats need rewording, the opening label
+    drift stays (do not reword to satisfy the gate). Done means `render` exits 4
+    -> 0 with NO --allow-unshippable: that is the milestone to chase tomorrow.
+  - TRACK B -- wire `render` -> a finished MP4 (a dev task, not hours of typing):
+    the PNG path works, D1 captions are burned in, but full video assembly needs
+    the engine's write_media chokepoint wired onto the channel's side. `build`,
+    `review`, `tts-check`, `verify` still exit 3.
+  - COMPUTE TIME ONCE A STORYBOARD IS SHIPPABLE, so the ask has a number: the
+    engine's V1 spike measured 5 scenes -> 172.6 s (~3 min) at 1280x720. Ours is 8
+    scenes, so ~3-5 min of compute for TTS + frames + assembly. Wall-clock for a
+    demo MP4 is hours away (Track A + minimal Track B); a production lesson
+    through the pipeline is the V1-V5 phases still ahead.
+
   WHERE IT STANDS WHEN YOU RETURN -- re-measure, don't trust the numbers cold:
   - The gate is FOUR commands (AGENTS.md "Facts that will bite you"):
       ruff check src tests && mypy src && pytest -q &&
