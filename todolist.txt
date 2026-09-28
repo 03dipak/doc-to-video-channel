@@ -3,8 +3,9 @@ doc-to-video-channel -- TODO
 Written 2026-09-28. Re-measure before citing any number in here; a status
 bullet is a measurement, not a setting. See AGENTS.md.
 
-STATE: 1 of 33 ACs met. 0 of 8 build steps done. 509 LOC src, 538 LOC tests.
-Gate green: exit 0, 35 tests, 100% of 173 statements and 48 branches.
+STATE: 1 of 33 ACs met. 0 of 8 build steps done. 740 LOC src, 855 LOC tests.
+Gate green: exit 0, 54 tests, 100% of 291 statements and 86 branches.
+The learner-only harness PASSES: 14 replayable steps pass, 1 is refused.
 Phase 0 landed (0394541). The storyboard layer landed after it (e16b355+).
 A green gate is not a working CLI -- all five verbs are declared and all five
 exit 3. The pipeline is not vendored until V1-V5.
@@ -187,11 +188,35 @@ OPEN, AND IT BREAKS A CONSTANT: CHAPTERED MODE.
   CHAPTER, not per video. Better decided now than when plan_lesson refuses a
   legal-looking plan at V4.
 
-STILL TO BUILD: the replay + learner-only HARNESS.
-  The validator is done; nothing executes commands yet. Harness must refuse every
-  replayable:false step, run each command, match expected_output_pattern, and
-  check state continuity against a real filesystem. Learner-only -- run ONLY what
-  is on screen -- is the strongest of the eight tests and the one not yet built.
+THE HARNESS -- BUILT AND PASSING. src/doc_to_video_channel/harness.py
+  Run: .venv/bin/python -m doc_to_video_channel.harness storyboards/<file>
+  MEASURED 2026-09-28: passed 14  failed 0  refused 1, harness exit 0. That is the
+  learner-only result: a learner following ONLY what is on screen reaches the end
+  state. It runs in a scratch directory, carries the working directory across
+  steps (a learner's shell does not forget where it is), and REFUSES install-uv
+  with its reason rather than installing software underneath the test.
+  It never repairs. A failed step is reported with command, exit code, output and
+  the pattern it did not match, because a harness that loosened an expectation to
+  get a green run would be the reject-never-repair violation.
+  21 harness tests, 1 of which is THE mutation: break a real command and demand
+  exit 1. It had to be rewritten once -- the first version broke a command
+  referencing a path nothing creates, and the contract check refused the board
+  before running anything. Correct behaviour, wrong test: it proved the validator
+  again. The shipped mutation survives validation and fails at execution.
+
+  BUILDING IT FOUND THREE CONTRACT GAPS, which is the argument for building the
+  consumer before the producer:
+    * `env` -- prove-not-on-path expects `uv: not found`, but uv IS on PATH here,
+      so the step was unrunnable as written and nothing said so. Steps now declare
+      `env.path_exclude` plus a mandatory `why`; unjustified-env is a fifth check.
+    * `expected_exit_code` -- `grep -c` EXITS 1 when the count is zero, so
+      prove-with-not-recorded SUCCEEDS with a failure code. That is the
+      "expected warnings versus actual errors" gap, and the contract had nowhere to
+      record it. The report now labels a non-zero exit as teaching, not failing.
+    * A WEAK EXPECTED PATTERN, found by constructing the exact bad state: the old
+      `^(pyproject\.toml|uv\.lock):0$` PASSED when rich was recorded in
+      pyproject.toml but not uv.lock -- a half-dirty project certified clean, on the
+      very claim the step exists to prove. Now `^pyproject\.toml:0$\n^uv\.lock:0$`.
 
 
 TODO -- BUILD ORDER (0 of 8 done)

@@ -54,7 +54,9 @@
           "state_change": "Creates ~/.local/bin/uv and ~/.local/bin/uvx; appends a PATH line to the shell profile.",
           "common_failure": "If `curl` is absent the command fails with `curl: command not found`; use the `wget -qO- ... | sh` form from the same page.",
           "replayable": false,
-          "replay_skip_reason": "Installs software and rewrites the shell profile. Verified by citation and by the measured install location, not by re-execution. This step is the one place where re-running is not merely expensive but changes the machine under the test."
+          "replay_skip_reason": "Installs software and rewrites the shell profile. Verified by citation and by the measured install location, not by re-execution. This step is the one place where re-running is not merely expensive but changes the machine under the test.",
+          "env": {},
+          "expected_exit_code": null
         },
         {
           "id": "prove-not-on-path",
@@ -65,7 +67,14 @@
           "checkpoint": "You see `not found` even though the install succeeded. This is expected.",
           "state_change": "None. Nothing is installed or removed by this step.",
           "common_failure": "Learners read this as a failed install. It is not -- the binary is on disk; the open shell has not re-read the profile.",
-          "replayable": true
+          "replayable": true,
+          "env": {
+            "path_exclude": [
+              "/home/dipak/.local/bin"
+            ],
+            "why": "The install step has just edited the profile, but an ALREADY-OPEN shell has not re-read it. A shell started with a PATH that excludes the install directory reproduces exactly that state, which is what the learner is looking at."
+          },
+          "expected_exit_code": 127
         },
         {
           "id": "prove-present-after-new-shell",
@@ -76,7 +85,9 @@
           "checkpoint": "The path printed ends in `/uv` and is under your home directory.",
           "state_change": "A login shell reads ~/.profile, which is where the installer added ~/.local/bin to PATH.",
           "common_failure": "If this still prints nothing, the installer did not edit your profile. Re-run with the version-pinned URL from the same documentation page.",
-          "replayable": true
+          "replayable": true,
+          "env": {},
+          "expected_exit_code": null
         },
         {
           "id": "record-version",
@@ -87,7 +98,9 @@
           "checkpoint": "You have a three-part version number written down.",
           "state_change": "None.",
           "common_failure": "A version below 0.5.0 installed into ~/.cargo/bin, so `which uv` may point there. See the uninstall note on the cited page.",
-          "replayable": true
+          "replayable": true,
+          "env": {},
+          "expected_exit_code": null
         }
       ]
     },
@@ -106,7 +119,9 @@
           "checkpoint": "The printed path ENDS IN `uv-demo`. This is the step that stops directory drift later.",
           "state_change": "Creates the working directory uv-demo and makes it the current directory.",
           "common_failure": "If the path does not end in uv-demo, you are somewhere else and every later relative path will be wrong.",
-          "replayable": true
+          "replayable": true,
+          "env": {},
+          "expected_exit_code": null
         },
         {
           "id": "init-project",
@@ -118,7 +133,9 @@
           "state_change": "Creates pyproject.toml, README.md and src/ in the current directory.",
           "common_failure": "If uv is not on PATH this fails with `uv: not found` -- go back to chapter 1.",
           "replayable": true,
-          "creates_indirectly": "pyproject.toml README.md src"
+          "creates_indirectly": "pyproject.toml README.md src",
+          "env": {},
+          "expected_exit_code": 0
         },
         {
           "id": "show-requires-python",
@@ -129,7 +146,9 @@
           "checkpoint": "You can read the Python constraint aloud. It is a constraint, not a comment.",
           "state_change": "None.",
           "common_failure": "A constraint like >=3.99 that names no real interpreter makes every later command fail; see the negative scene in chapter 5.",
-          "replayable": true
+          "replayable": true,
+          "env": {},
+          "expected_exit_code": null
         }
       ]
     },
@@ -149,7 +168,9 @@
           "state_change": "Appends the requirement to pyproject.toml and writes uv.lock.",
           "common_failure": "Running this outside the project root writes a new project instead of editing the existing one.",
           "replayable": true,
-          "creates_indirectly": "pyproject.toml uv.lock"
+          "creates_indirectly": "pyproject.toml uv.lock",
+          "env": {},
+          "expected_exit_code": null
         },
         {
           "id": "prove-recorded",
@@ -160,7 +181,9 @@
           "checkpoint": "The dependency is visible in the file, not only in the terminal output.",
           "state_change": "None.",
           "common_failure": "If the file does not list it, the command ran somewhere else.",
-          "replayable": true
+          "replayable": true,
+          "env": {},
+          "expected_exit_code": null
         }
       ]
     },
@@ -180,7 +203,9 @@
           "state_change": "Writes uv.lock. Installs nothing. This distinction is the whole point of the step.",
           "common_failure": "Treating lock as install; then you have no way to review a resolution before adopting it.",
           "replayable": true,
-          "creates_indirectly": "uv.lock"
+          "creates_indirectly": "uv.lock",
+          "env": {},
+          "expected_exit_code": null
         },
         {
           "id": "prove-lockfile-exists",
@@ -191,7 +216,9 @@
           "checkpoint": "The filename is exactly uv.lock.",
           "state_change": "None.",
           "common_failure": "If this fails, lock did not run in this directory.",
-          "replayable": true
+          "replayable": true,
+          "env": {},
+          "expected_exit_code": null
         }
       ]
     },
@@ -210,7 +237,9 @@
           "checkpoint": "src/main.py now exists. This is the step that closed the `shown versus created` gap.",
           "state_change": "Creates src/main.py.",
           "common_failure": "If src/ does not already exist, mkdir -p creates it; without the -p the command fails when src is absent.",
-          "replayable": true
+          "replayable": true,
+          "env": {},
+          "expected_exit_code": null
         },
         {
           "id": "run-main",
@@ -221,7 +250,9 @@
           "checkpoint": "The printed version is a 3.12.x, NOT necessarily the system python3. That difference is the lesson.",
           "state_change": "Creates .venv/ in the project. May download a managed interpreter on a clean machine -- measured 111 MB on this one, already cached since 2026-08-13, so this run fetched nothing.",
           "common_failure": "ModuleNotFoundError means you ran before `uv add`; see the negative scene at the end of this chapter.",
-          "replayable": true
+          "replayable": true,
+          "env": {},
+          "expected_exit_code": null
         },
         {
           "id": "with-rich",
@@ -233,18 +264,22 @@
           "state_change": "Installs rich into a temporary environment. Writes NOTHING to pyproject.toml or uv.lock.",
           "common_failure": "Using --with for a dependency the project actually needs; it will be missing on the next machine and nobody will know why.",
           "replayable": true,
-          "creates_indirectly": "pyproject.toml uv.lock"
+          "creates_indirectly": "pyproject.toml uv.lock",
+          "env": {},
+          "expected_exit_code": null
         },
         {
           "id": "prove-with-not-recorded",
           "purpose": "Prove the throwaway really was not recorded.",
           "precondition": "with-rich has run.",
           "command": "grep -c rich pyproject.toml uv.lock",
-          "expected_output_pattern": "^(pyproject\\.toml|uv\\.lock):0$",
-          "checkpoint": "BOTH files report 0.",
+          "expected_output_pattern": "^pyproject\\.toml:0$\\n^uv\\.lock:0$",
+          "checkpoint": "BOTH files report 0. Note that grep -c EXITS 1 when the count is zero, so a non-zero exit here is the SUCCESS signal, not a failure -- say so out loud, or a learner will read the 1 as a broken command.",
           "state_change": "None.",
           "common_failure": "A non-zero count means the package was recorded, so it was added the wrong way.",
-          "replayable": true
+          "replayable": true,
+          "env": {},
+          "expected_exit_code": 1
         }
       ]
     }

@@ -104,6 +104,21 @@ class Step:
     #: real storyboard. Empty string means "nothing indirect is claimed".
     creates_indirectly: str = ""
 
+    #: Environment the harness must build to run this step faithfully. Found by
+    #: building the harness: `prove-not-on-path` expects `uv: not found`, but uv IS
+    #: on PATH on the build machine, so the step is unrunnable as written and
+    #: nothing said so. `path_exclude` reproduces a shell that has not re-read an
+    #: edited profile. `why` is required whenever anything is set, so a modified
+    #: environment is a claim with a reason rather than a silent trick.
+    env: dict[str, Any] = field(default_factory=dict)
+
+    #: Expected process exit code, or None when the code is not part of the claim.
+    #: Found by running the harness: two steps turned on the exit code as part of
+    #: what they teach -- `grep -c` EXITS 1 when the count is zero, so
+    #: prove-with-not-recorded "succeeds" with a failure code -- and the contract had
+    #: nowhere to say so. None means "not asserted", never "any code is fine".
+    expected_exit_code: int | None = None
+
     @property
     def expected_regex(self) -> re.Pattern[str]:
         """The expected output as a regex, compiled once.
@@ -245,13 +260,25 @@ def load(path: Path) -> tuple[Storyboard, list[Gap]]:
             }
             replayable = s_raw.get("replayable", True)
             reason = s_raw.get("replay_skip_reason", "")
+            step_env = _as_dict(s_raw.get("env"))
+            # `env: {}` means "no special environment" and must not trip the check:
+            # only a step that actually asks for something owes the reader a `why`.
+            if step_env and not str(step_env.get("why", "")).strip():
+                gaps.append(
+                    Gap(
+                        "unjustified-env",
+                        where,
+                        "`env` is set with no `why`, so a step can alter the "
+                        "environment the learner is shown without saying what for",
+                    )
+                )
             if not replayable and not reason:
                 gaps.append(
                     Gap(
                         "unjustified-skip",
                         where,
-                        "`replayable: false` with no `replay_skip_reason`, so nothing says why "
-                        "this step is exempt from the harness",
+                        "`replayable: false` with no `replay_skip_reason`, so nothing "
+                        "says why this step is exempt from the harness",
                     )
                 )
             steps.append(
@@ -267,6 +294,12 @@ def load(path: Path) -> tuple[Storyboard, list[Gap]]:
                     replayable=bool(replayable),
                     replay_skip_reason=str(reason),
                     creates_indirectly=str(s_raw.get("creates_indirectly", "")),
+                    env=step_env,
+                    expected_exit_code=(
+                        s_raw["expected_exit_code"]
+                        if isinstance(s_raw.get("expected_exit_code"), int)
+                        else None
+                    ),
                 )
             )
         chapters.append(
