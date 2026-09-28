@@ -23,6 +23,7 @@ from __future__ import annotations
 import json
 import os
 from pathlib import Path
+from typing import TypedDict, cast
 
 import pytest
 
@@ -31,8 +32,42 @@ _VENDOR = _ROOT / "tests" / "fixtures" / "vendor"
 _PROVENANCE = _VENDOR / "PROVENANCE.json"
 
 
-def _provenance() -> dict[str, object]:
-    return json.loads(_PROVENANCE.read_text(encoding="utf-8"))
+class _Fixture(TypedDict):
+    local: str
+    reference_path: str
+    bytes: int
+    sha256: str
+
+
+class _Provenance(TypedDict):
+    vendor_ref: str
+    fixtures: list[_Fixture]
+
+
+def _provenance() -> _Provenance:
+    """Parse PROVENANCE.json, and refuse rather than proceed on a bad shape.
+
+    An unvalidated `json.loads` here would return `Any` and let a malformed
+    manifest silently place zero fixtures -- which is exactly the failure the 9
+    dead tests already had once. Every key is checked, so a typo in the file is a
+    loud failure at session start instead of 9 `FileNotFoundError`s.
+    """
+    raw: object = json.loads(_PROVENANCE.read_text(encoding="utf-8"))
+    if not isinstance(raw, dict):
+        pytest.exit(f"{_PROVENANCE} must contain a JSON object")
+    for key in ("vendor_ref", "fixtures"):
+        if key not in raw:
+            pytest.exit(f"{_PROVENANCE} is missing the required key {key!r}")
+    entries = raw["fixtures"]
+    if not isinstance(entries, list) or not entries:
+        pytest.exit(f"{_PROVENANCE} must list at least one fixture")
+    for entry in entries:
+        if not isinstance(entry, dict):
+            pytest.exit(f"{_PROVENANCE} has a non-object fixture entry: {entry!r}")
+        for key in ("local", "reference_path", "bytes", "sha256"):
+            if key not in entry:
+                pytest.exit(f"fixture entry missing {key!r}: {entry!r}")
+    return cast(_Provenance, raw)
 
 
 def _place(reference_path: str, local: str) -> Path:
@@ -61,6 +96,6 @@ def _place(reference_path: str, local: str) -> Path:
 @pytest.fixture(scope="session", autouse=True)
 def _vendor_fixtures_in_place() -> list[Path]:
     placed: list[Path] = []
-    for entry in _provenance()["fixtures"]:  # type: ignore[index]
-        placed.append(_place(str(entry["reference_path"]), str(entry["local"])))
+    for entry in _provenance()["fixtures"]:
+        placed.append(_place(entry["reference_path"], entry["local"]))
     return placed
