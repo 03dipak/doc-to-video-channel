@@ -61,6 +61,53 @@ F1. A5 DANGLING REFERENCE -- this was a defect I introduced in 4dfe02f.
     hanging on a step with no number.
 
 
+OWNER DELIVERABLE -- THE SOURCE DOCUMENT. Not written by me, and on the
+critical path for everything except V-1.
+------------------------------------------------------------------------------
+Measured 2026-08-28: this repo contains ONLY design records -- every .md in it is
+a design document. There is no corpus/ and no sources/ directory, so the channel
+has no tutorial source at all. AGENTS.md already records this for the engine
+(find -iname "*histor*" -o -iname "*narrativ*" returns 0 hits across both trees)
+and says every claim about that corpus is UNVERIFIED until a real document is
+supplied, and that a synthetic fixture must not stand in for one without saying
+so.
+
+WHY V-1 DOES NOT NEED IT, measured rather than argued:
+  cli.main's `render` branch spans lines 589-660 and calls NEITHER
+  load_documents NOR plan_lesson -- it reads a saved plan.json. So the spike is a
+  RENDER-PATH test, not a content test, and needs no document to plan from.
+  What the gate does require is per-scene `topic` and a non-empty `source_refs`
+  list (validate.py's _scene_metadata_problems), and that check is PRESENCE, NOT
+  RESOLUTION: the refs are never opened and never have to exist.
+
+WHY THAT IS EXACTLY WHY THE SPIKE MUST BE LABELLED:
+  A presence-only check means a plan can point source_refs at nothing and still
+  pass. That is fabricating provenance -- the one thing this project exists to
+  prevent (the description is "code decides what is true"). So the V-1 fixture
+  plan must carry an explicit fixture marker and its source_refs must SAY it is a
+  fixture. A green render whose provenance points at an invented file is worse
+  than no render, because it looks like evidence.
+
+WHY I AM NOT WRITING IT:
+  If I author the uv install document, the source becomes me. The video would
+  then carry a provenance stamp pointing at my own invention, teaching possibly
+  wrong install steps with the appearance of grounding -- "beautiful and wrong",
+  which AGENTS.md names as the failure the viewer role is the only one to see and
+  is explicitly NOT scoped to judge (truth belongs to the grounding gates). The
+  document must be the owner's, or be a real upstream source that can be cited.
+
+WHAT THE DOCUMENT MUST CONTAIN, for build to accept it:
+  * Real, correct, ORDERED uv install steps. Ordered matters: the viewer role's
+    whole subject is whether each command is shown before it is used.
+  * Enough distinct material for at least MIN_SCENES=5 and at most 8 scenes, or
+    plan_lesson cannot produce a legal plan and the gate refuses it.
+  * Verifiable commands whose output the narration can state truthfully.
+  * In a format A5 reads. .md is the low-risk choice; .docx only after A5 lands
+    at V1, and never advertised in README or --help before then.
+  * Passing the A41 source allow-list, and not on the A33 content-hash blocklist.
+  * Something that is not the engine's excluded school corpus (A33).
+
+
 TODO -- BUILD ORDER (0 of 8 done)
 ---------------------------------
 [x] V-1   SPARK: 5-scene uv render, model-free, direct renderer API (NOT the
@@ -95,6 +142,14 @@ TODO -- BUILD ORDER (0 of 8 done)
           skipped file is visible.
 [ ] V7    the seam (Phase 1): behavioural differential, ownership audit, the
           two renderers x every SectionKind.
+
+  NONE OF V0-V7 IS BLOCKED BY THE MISSING DOCUMENT -- the spike plans nothing and
+  the later steps are mechanical. What the document blocks is the first video
+  that a human watches: `build` is source doc -> load_documents -> plan_lesson ->
+  render, and there is no step after V7 that can run without it. So the document
+  is on the critical path to SHIPPING, not to BUILDING. Do not let that
+  distinction hide it: an unrunnable channel and an unwatched channel are both
+  zero.
 
 
 DO NOT REINTRODUCE
