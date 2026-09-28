@@ -1,31 +1,218 @@
-"""Vendored pipeline modules, byte-identical to `VENDOR_REF` except where recorded.
+"""Studio pipeline package (split from the former studio.py monolith)."""
 
-**This package marker re-exports nothing, and that is the point.**
+from __future__ import annotations
 
-The baseline's `studio/__init__.py` is a **re-export facade**: its whole job is to
-let callers write `from doc_to_video_tutor import studio as S`. §5.1 row 18 drops
-it, and the reason it is dropped is that a facade is a **second import path** to
-every module in the tree -- the defect the LLD records as "a method with two
-spellings is how a type drifts". Deleting the facade is a real decision and it
-stands.
+from .cli import main
+from .config import (  # noqa: F401
+    _BANNED_DISTINCT,
+    _BANNED_EXAMPLE,
+    _BANNED_NGRAMS,
+    _CLOSER_POOL,
+    _CONTRAST_RE,
+    _DD_GENERIC,
+    _DD_LEADS,
+    _DEVANAGARI,
+    _ENUM_HINTS,
+    _MHE_MARKERS,
+    _NARR_HEADS,
+    _NARR_MIN_TOKENS,
+    _OPENER_POOL,
+    _POINTS_LEADS,
+    _REPEAT_POLICY_VERSION,
+    _SCHEMA_VERSION,
+    _SECTIONS,
+    _SOFT_PREFIXES,
+    _TEMPLATE_AHEM,
+    _TEMPLATE_SEEKHTE,
+    _VIDEO_BODY_MAX,
+    ACCENT,
+    AUTO_TRIM_MAX_SCENES,
+    BG,
+    BRAND_FOOTER,
+    FG,
+    GOLD,
+    GREEN,
+    LLM_API_KEY,
+    LLM_BASE_URL,
+    LLM_MODEL,
+    MIN_SCENES,
+    MUTED,
+    NARRATION_PROMPT,
+    PANEL,
+    STUDIO_PROMPT,
+    TARGET_MAX_SCENES,
+    TITLE_HOLD,
+    TOPIC_PROMPT,
+    TTS_VOICE,
+)
+from .llm import (  # noqa: F401
+    _ask_llm_stable,
+    _bounded_content,
+    _extract_topics,
+    _parse_plan_json,
+    _parse_scene_json,
+    ask_llm,
+)
+from .narration import (  # noqa: F401
+    _clean_narration,
+    _dedupe_narration_templates,
+    _deepen_narrations,
+    _drop_repeated_filler,
+    _drop_shared_narration_sentences,
+    _drop_within_scene_exact_repeats,
+    _enforce_unique_narration_trigrams,
+    _narrate_plan,
+    _narration_3grams,
+    _narration_is_pure_english,
+    _narration_repeat_report,
+    _narration_tail_repeat,
+    _persist_protected_trigrams,
+    _protected_terms,
+    _rebuild_scene_narration,
+    _repair_thin_narrations,
+    _repair_unsafe_narrations,
+    _thin_narration,
+    _trim_narration_word_count,
+    _unsafe_repeat_scenes,
+    narration_matches_voice_policy,
+)
+from .plan import (  # noqa: F401
+    _annotate_scene_metadata,
+    _concept_groups,
+    _concept_headers,
+    _contrast_sentences,
+    _dedupe_plan_bullets,
+    _drop_repeated_bullet_clauses,
+    _drop_ungrounded_slide_text,
+    _filter_takeaways_to_retained,
+    _fix_placeholder_titles,
+    _grounding_issues,
+    _harvest_takeaways,
+    _infer_section,
+    _normalize_sections,
+    _overflow_audit,
+    _paginate_plan_slides,
+    _patch_opening,
+    _patch_scene,
+    _placeholder_titles,
+    _plan_scene_target,
+    _prune_bullet_takeaway_echo,
+    _repeated_bullets,
+    _repeated_terms,
+    _sanitize_design_decisions,
+    _sanitize_opening,
+    _sanitize_plan_source_leaks,
+    _scene_bullet_pages,
+    _scene_count_problem,
+    _scene_problem_map,
+    _section_problems,
+    _source_design_decisions,
+    _source_outline,
+    _trim_dropped_topic,
+    _trim_scene_overflow,
+    plan_lesson,
+)
+from .pptx import (  # noqa: F401
+    _ppt_bullet,
+    _ppt_codebox,
+    _ppt_para,
+    _ppt_set_bg,
+    _ppt_slide_chrome,
+    _ppt_textbox,
+    _video_blocks,
+    build_pptx,
+)
+from .slides import (  # noqa: F401
+    _TTF_BOLD,
+    _TTF_MONO,
+    _TTF_REGULAR,
+    _font,
+    _font_cache,
+    _json_payload_candidates,
+    _parse_diagram,
+    _render_title_card,
+    _rounded_rect,
+    _scene_pages,
+    _slide_variants,
+    _with_overflow,
+    _wrap,
+    render_scenes,
+    render_slide,
+)
+from .speech import (  # noqa: F401
+    TtsFinding,
+    _hydrate_spoken_fragments,
+    _is_slide_fragment,
+    audit_tts_script,
+    build_tts_script,
+    collapse_repeated_title,
+    render_script_txt,
+    repair_speech_punctuation,
+    sentences,
+    speech_expand,
+    strip_slide_meta,
+)
+from .text import (  # noqa: F401
+    _STOP,
+    _WORD,
+    _content_ngrams,
+    _content_tokens,
+    _entity_tokens,
+    _has_non_latin_script,
+    _has_source_citation,
+    _jaccard,
+    _merged_token_issues,
+    _nar_3grams_t,
+    _nar_3grams_t_ordered,
+    _nar_gram_key,
+    _nar_tokens,
+    _near_dupe_bullets,
+    _ngram_set,
+    _strip_source_citations,
+    _strip_source_metadata_blocks,
+    _text_ngrams,
+    _token_set,
+    _tokens_of,
+    _top_source_terms,
+    _topic_tokens,
+    clip_title,
+)
+from .topics import (  # noqa: F401
+    _force_opening_on_topic,
+    _opening_is_on_topic,
+    _opening_template_hit,
+    _plan_is_on_topic,
+    _topic_coverage_problem,
+)
+from .util import _load_pptx, _Progress, atomic_json_write, load_documents  # noqa: F401
+from .validate import (  # noqa: F401
+    _narration_integrity_problems,
+    _render_blocking_problems,
+    _slide_text_language_problems,
+    guard_plan,
+    review_plan,
+)
+from .video import _render_media, _scene_audio, assemble_video, synth_scenes  # noqa: F401
+from .voice import (  # noqa: F401
+    _ENGLISH_POLICY,
+    _ENGLISH_VOICE,
+    _MHE_LEAK_PHRASES,
+    _MHE_POLICY,
+    _MHE_VOICE,
+    _VOICES,
+    CleanupRule,
+    NarrationLanguagePolicy,
+    NarrationVoice,
+    PronunciationRule,
+    _assign_closers,
+    _assign_openers,
+    _make_voice,
+    _opener_module_name,
+    _voice_fingerprint,
+)
 
-Creating this *directory* is a separate decision from dropping the *facade*, and
-conflating them is where the LLD went wrong: it concluded "no `studio/`
-subpackage" from a premise about re-exports. This file is the counter-example --
-a package marker with a docstring and zero re-exports, so every module has exactly
-one import path, `doc_to_video_channel.studio.<name>`.
-
-**Why the directory is worth having:**
-
-* **Provenance is visible.** Everything in here came from the baseline; the four
-  modules beside this package are ours. In a flat layout that distinction is
-  something a reader has to know.
-* **It forecloses a class of collision.** V5 brings `cli.py`, `plan.py` and
-  `config.py`. Today none of those clash with `storyboard.py`, `harness.py` or
-  `vendor.py`, but nothing in the design prevents a future original module from
-  being named `cli.py` and colliding with a vendored one.
-* **Relative imports keep working either way**, so this is not a correctness
-  change. `from .util import` in a vendored `plan.py` resolves to
-  `doc_to_video_channel.studio.util` here and to `doc_to_video_tutor.studio.util`
-  there. Verified, not assumed.
-"""
+__all__ = [
+    "assemble_video", "build_pptx", "build_tts_script", "guard_plan",
+    "load_documents", "main", "plan_lesson", "render_scenes", "render_script_txt",
+    "review_plan", "synth_scenes",
+]

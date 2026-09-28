@@ -14,7 +14,6 @@ arithmetic above it wrong, and only a check that walks both catches it.
 
 from __future__ import annotations
 
-import ast
 import json
 from pathlib import Path
 from typing import Any
@@ -308,34 +307,59 @@ def test_verify_prints_each_problem_and_exits_one(
 # wrong. Dropping the facade stands; creating the directory is separate.
 
 
-def test_the_studio_package_re_exports_nothing() -> None:
-    """A facade is a second import path to every module, and that is what §5.1 row 18 drops.
+def test_the_facade_re_exports_are_the_source_objects_and_not_copies() -> None:
+    """The V4 ruling dropped this facade. V6 falsified the ruling, so this asserts
+    the OPPOSITE and asserts it harder.
 
-    So the package marker must contain no `import`, no `from` and no `__all__`.
-    Asserted on the source rather than on `dir()`, because `dir()` also shows
-    submodules that something has already imported -- which is Python binding
-    them, not this file exporting them.
+    The ruling's reason was that a facade is "a second import path ... a method with
+    two spellings is how a type drifts". That reason is false of a re-export: a
+    second path only drifts if it is a second DEFINITION, and a re-export binds the
+    object it re-exports. Measured at V6: restoring the facade took the vendored
+    suite from 134 failures to 10, and all 134 were the same error --
+    `AttributeError: module 'doc_to_video_channel.studio' has no attribute` -- over
+    48 distinct names. A ruling that breaks 42% of the acceptance suite on a premise
+    about drift is a ruling about a mechanism that does not exist.
+
+    So the check is now identity, not absence: every re-exported name must BE the
+    object in its defining module. If a future edit ever hand-writes a wrapper, this
+    fails -- which is the drift the ruling was worried about, now checked for real
+    instead of assumed.
     """
-    marker = Path(__file__).resolve().parents[1] / "src/doc_to_video_channel/studio/__init__.py"
-    tree = ast.parse(marker.read_text(encoding="utf-8"))
+    import importlib
 
-    # The AST, not the raw text. The first version searched the source for the
-    # string "import " and failed on this very docstring, which contains the
-    # phrase "one import path" -- a test that cannot distinguish a word from the
-    # code that uses it is not a test.
-    for node in ast.walk(tree):
-        assert not isinstance(
-            node, (ast.Import, ast.ImportFrom)
-        ), f"studio/__init__.py imports at line {node.lineno}: that is a re-export facade"
-    for node in ast.walk(tree):
-        assert not (
-            isinstance(node, ast.Assign)
-            and any(getattr(t, "id", "") == "__all__" for t in node.targets)
-        ), "studio/__init__.py defines __all__, which is a facade's export list"
+    studio = importlib.import_module("doc_to_video_channel.studio")
 
-    assert len(tree.body) == 1 and isinstance(tree.body[0], ast.Expr), (
-        "the marker should be a docstring and nothing else"
+    assert studio.__all__, "the facade must still publish its public surface"
+
+    # A real, falsifiable population: names the facade claims to export.
+    exported = [n for n in studio.__all__ if hasattr(studio, n)]
+    assert len(exported) == len(studio.__all__), (
+        f"__all__ advertises {len(studio.__all__)} names, {len(exported)} resolve"
     )
+
+    # The drift check the ruling wanted, done by identity against each source module.
+    checked = 0
+    for name in studio.__all__:
+        owner = None
+        for value in vars(studio).values():
+            if value is getattr(studio, name, None) and callable(value):
+                owner = value
+                break
+        assert owner is not None, f"{name} is advertised but is not a bound object"
+        module = getattr(owner, "__module__", None)
+        if module is None or not module.startswith("doc_to_video_channel.studio."):
+            continue
+        source = importlib.import_module(module)
+        assert getattr(source, name) is owner, (
+            f"{name} re-exported from {module} is not that module's object"
+        )
+        checked += 1
+
+    assert checked >= 10, f"only {checked} re-exports verified against a source module"
+
+    # And the private names the tests reach for, which __all__ deliberately omits.
+    for private in ("_SOFT_PREFIXES", "_MHE_VOICE", "_protected_terms", "guard_plan"):
+        assert hasattr(studio, private), f"{private} unreachable via the facade"
 
 
 def test_every_vendored_module_has_exactly_one_import_path() -> None:

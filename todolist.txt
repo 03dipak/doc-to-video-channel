@@ -431,6 +431,49 @@ COVERAGE, AND WHY 18% IS NOT A REGRESSION
 
 
 =============================================================================
+V6 -- DONE. 315 REFERENCE TESTS LANDED. AND THEY FALSIFIED A V4 RULING.
+=============================================================================
+  VENDORED TESTS: 7 files, 7,097 lines, import-rename ONLY. Verified: each copy is
+  byte-identical to a fresh `sed 's/doc_to_video_tutor/doc_to_video_channel/'` of the
+  reference, 0 residual old references. Collection is 123+26+23+24+23+47+49 = 315,
+  exactly the population AC#32 claims, over 486 collected with our 171.
+
+  THE RULING WAS WRONG, and 134 of the 315 failures said so. The V4/V5 ruling
+  dropped studio/__init__.py because "a facade is a second import path to every
+  module -- a method with two spellings is how a type drifts". The premise is false
+  of a re-export: a second path only drifts if it is a second DEFINITION, and a
+  re-export binds the object it re-exports, so there is nothing to drift. Measured:
+  with the facade dropped, ALL 134 failures were one error --
+  `AttributeError: module 'doc_to_video_channel.studio' has no attribute` -- over 48
+  distinct names. That is 42% of the acceptance suite broken by a ruling about a
+  mechanism that does not exist. Restored verbatim (218 lines, sha256 matches the
+  manifest, which was always written for the facade-present state -- my V4 edit was
+  the unmanifested deviation, and nothing caught it because verify was not re-run).
+  134 -> 10.
+
+  MY OWN TEST WAS FALSIFIED BY THE SAME EVIDENCE and is now inverted, not deleted:
+  `test_the_studio_package_re_exports_nothing` asserted the absence. It now asserts
+  IDENTITY -- every name in __all__ must BE the object in its defining module -- so
+  the drift the ruling worried about is checked for real, over a real population
+  (>=10 verified re-exports), instead of assumed.
+
+  COVERAGE, the number V6 existed to produce, over two populations:
+      ours      476 stmts  98.5%   (unchanged by V6, floored at 95)
+      vendored  5,358 stmts 61%   (was 12-16% before the reference tests landed)
+      whole tree 5,834 stmts 66%  <- the figure that read 18% this morning
+
+  STILL OPEN, and it is DATA not code: 9 of the 315 cannot run. They read
+  `modules/08_concepts_mod03_gates.md` (18,153 bytes) and
+  `tests/fixtures/04_concepts_mod04_release_gates.md` (4,220 bytes), which exist in
+  the reference tree and not here. So the reference's suite is NOT hermetic: 9 of
+  its 315 tests depend on files outside its tests/ directory. The vendored figure
+  above is measured WITH those 9 dead, so 61% is a floor, not a ceiling.
+
+  mypy tests: 74 errors in the 7 vendored files, as predicted. The gate is
+  `mypy src` and it is clean.
+
+
+=============================================================================
 V5 -- DONE. 6,821 lines. THE TREE IMPORTS. THE CHOKEPOINT WORKS.
 =============================================================================
   cli 875 + duration 285 + llm 283 + narration 1,107 + pptx 1,022 + slides 758 +
