@@ -23,7 +23,17 @@ Two things, in this order. Nothing else is blocked.
    directions: 3 findings -> 0 with the protection, and refused without it. The
    spike's declared exemption is REMOVED and the fixture is now CLEAN.
 
-4. THEN: V0. Nothing is blocked now.
+4. DONE: V0. vendor_manifest.json exists, VERIFIES against the tree at a7d63e0, and
+   VENDOR_REF now exists as a constant. AC#33's three clauses are each proved by a
+   test. It also caught a stale figure in this very file's build order -- see below.
+
+5. THEN: V1 -- util.py, text.py, config.py. 955 lines, three zero-internal-import
+   modules, plus A5 (the .docx reader). Nothing is blocked.
+
+6. NOT BUILT, ON PURPOSE: the files themselves. V0 measures intent; V1-V5 copy.
+   A manifest built from the LLD's table would agree with the table by
+   construction and could never detect the table being wrong, so every count and
+   hash in it is MEASURED against the named reference.
      RECIPE, recovered from the baseline's own render branch and re-measured:
        * Build a FIXTURE plan.json with 5 scenes. 5, not 1: MIN_SCENES is 5 and the
          gate refuses fewer in BOTH branches.
@@ -49,7 +59,7 @@ Two things, in this order. Nothing else is blocked.
 
 
 =============================================================================
-STATE (measured 2026-09-28, HEAD 4aba6cd, working tree clean)
+STATE (measured 2026-09-28, HEAD b4027c0)
 =============================================================================
 Gate green: exit 0, 54 tests passed, 100% of 291 statements and 86 branches.
   .venv/bin/ruff check src tests && .venv/bin/mypy src && .venv/bin/pytest
@@ -57,8 +67,9 @@ Learner-only harness PASSES: passed 14  failed 0  refused 1, harness exit 0.
   .venv/bin/python -m doc_to_video_channel.harness storyboards/uv-install.storyboard.json
 V-1 SPIKE RENDERED: 5 artefacts, 172.6 s, 1280x720, 40 .vtt cues, 303 word
   tokens. Full numbers and the three instruments that did not pass are in
-  spikes/V1-RESULTS.md. 802 LOC src, 918 LOC tests.
-1 of 33 ACs met. V-1 done; 0 of 7 remaining build steps done.
+  spikes/V1-RESULTS.md.
+V0 DONE: vendor_manifest.json verifies against the tree at a7d63e0. AC#33 closed.
+2 of 33 ACs met. V-1 and V0 done; 6 of 8 build steps remaining.
 
 A GREEN GATE IS NOT A WORKING CLI. All five verbs are declared and all five exit 3:
 build, review, tts-check, verify and render do nothing yet, and the pipeline they
@@ -246,6 +257,36 @@ repeat gate deleting terminology. This is why F1 could not be worked around by
 source-derived protection. A vendored copy inherits it. Belongs in DECISIONS.md.
 
 =============================================================================
+V0 -- DONE. AC#33 CLOSED. src/doc_to_video_channel/vendor.py + vendor_manifest.json
+=============================================================================
+  .venv/bin/python -m doc_to_video_channel.vendor write|verify
+  MEASURED: vendor_ref a7d63e0 == the baseline's actual HEAD; 16 copy = 10,492
+  lines; 3 drop = 505; total 10,997; verify exit 0. All 19 hashes match the tree.
+  VENDOR_REF now EXISTS as a constant. It had 0 occurrences in the baseline while
+  three documents referred to it by name; AC#33's "stated relative to VENDOR_REF
+  rather than absolutely" is now checkable, because vendor_ref and measured_ref are
+  TWO separate fields and the manifest records whether they agree.
+
+  AC#33's three clauses, each with a test: the manifest exists; its hashes match
+  the tree; the closure is stated relative to a ref rather than absolutely.
+
+  FOUND HERE, IN THIS FILE'S OWN BUILD ORDER: v010 stated V5 at 9,326 lines.
+  Measured, the ten modules assigned to V5 are 6,821 -- overstated by exactly 2,505,
+  which is plan.py's count double-counted. The arithmetic closes:
+  955 + 211 + 2,505 + 6,821 = 10,492. Corrected in the LLD and here, and
+  test_the_build_order_accounts_for_every_line now fails if it drifts again.
+  A table in prose was RIGHT while the arithmetic built on top of it was wrong,
+  across seven review rounds.
+
+  TWO BUGS IN THE VERIFIER ITSELF, both found by tests:
+    * It resolved the baseline as <repo>/src/doc_to_video_tutor, so it measured THIS
+      repository: 0 lines, 19 files absent, and a measured_ref of our own commit
+      while claiming a7d63e0. Every one of those would have looked like a plausible
+      manifest. The baseline is a SIBLING; there is now a test asserting that.
+    * It recomputed 3 of the 5 totals, so a manifest claiming 12,345 copied lines
+      verified clean. All 5 are recomputed now.
+
+=============================================================================
 NOT BUILT, AND IT IS A DECISION NOT AN OMISSION
 =============================================================================
 The narration-versus-screen INSTRUMENT. Three mechanical versions were tried on the
@@ -410,7 +451,7 @@ BUILD ORDER (0 of 8 done)
          COMMIT, not after it: the harness's purpose is to run plan_lesson, and
          plan_lesson arrives with V4, so gating the harness separately would gate a
          function that does not exist yet. Closes AC#18-#24.
-[ ] V5   the remaining 10 modules -- 9,326 lines -- PLUS write_media, the
+[ ] V5   the remaining 10 modules -- 6,821 lines -- PLUS write_media, the
          fixture-refusal chokepoint both render call sites reach. This is where
          the withdrawn `publish` verb's control now lives. Closes AC#25, AC#26,
          AC#13. Also the burn-in stage from D1.

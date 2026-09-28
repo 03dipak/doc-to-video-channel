@@ -1,0 +1,194 @@
+{
+  "schema_version": 1,
+  "vendor_ref": "a7d63e0",
+  "measured_ref": "a7d63e0",
+  "ref_matches_measured": true,
+  "engine_package": "doc_to_video_tutor",
+  "generated": "2026-09-28",
+  "modules": [
+    {
+      "path": "studio/util.py",
+      "decision": "copy",
+      "step": "V1",
+      "reason": "LoadedSource, load_documents; zero internal imports",
+      "exists": true,
+      "lines": 230,
+      "sha256": "2df8fc8ccc6caa8ca0a1306bdec733dcdff45e3dc9fbc313143a7ed742066687"
+    },
+    {
+      "path": "studio/text.py",
+      "decision": "copy",
+      "step": "V1",
+      "reason": "_has_non_latin_script, _nar_tokens; zero imports",
+      "exists": true,
+      "lines": 369,
+      "sha256": "323cfe038eace7e5cb5cf2102a79afc9b23fecde485033f3e744292ec14bdb99"
+    },
+    {
+      "path": "studio/config.py",
+      "decision": "copy",
+      "step": "V1",
+      "reason": "_SECTIONS, _ENUM_HINTS, both prompts, VENDOR_REF",
+      "exists": true,
+      "lines": 356,
+      "sha256": "e40bc90ec4ce8bb1c4f6af65443d2eb9b5c076d901b484d3869e52c85fc88713"
+    },
+    {
+      "path": "studio/topics.py",
+      "decision": "copy",
+      "step": "V2",
+      "reason": "_BANNED_NGRAMS consumers",
+      "exists": true,
+      "lines": 88,
+      "sha256": "eeedc31192e242c5feed32e31e02f59e1fa97e814981c28c07d5e51e4e510bf9"
+    },
+    {
+      "path": "studio/schema.py",
+      "decision": "copy",
+      "step": "V2",
+      "reason": "SlideScene, LessonPlan; the only Pydantic models",
+      "exists": true,
+      "lines": 123,
+      "sha256": "e6539678eccf69373b57b523f4395460770a8e7888ce9d1c6f70e3158cbff153"
+    },
+    {
+      "path": "studio/plan.py",
+      "decision": "copy",
+      "step": "V4",
+      "reason": "planner; hosts the _extra_gates registry",
+      "exists": true,
+      "lines": 2505,
+      "sha256": "8fdbee07a61560d28c7bfd6268fbc77c5d8549e6cc99642043e041b3f8fb17e7"
+    },
+    {
+      "path": "studio/cli.py",
+      "decision": "copy",
+      "step": "V5",
+      "reason": "the build path; 5 subcommands",
+      "exists": true,
+      "lines": 875,
+      "sha256": "832a2f114ea65d870a35608f328f2698589c2b0f16d399dcdc301f3b4321b822"
+    },
+    {
+      "path": "studio/duration.py",
+      "decision": "copy",
+      "step": "V5",
+      "reason": "the duration formula and duration_verdict",
+      "exists": true,
+      "lines": 285,
+      "sha256": "317289ac8e732f790f88fa5168ed93207ee7e1e081bcad555c66eaebc8ec4e12"
+    },
+    {
+      "path": "studio/llm.py",
+      "decision": "copy",
+      "step": "V5",
+      "reason": "_ask_llm_stable; both bindings resolve through it",
+      "exists": true,
+      "lines": 283,
+      "sha256": "354cd572b9144c1524261ffea1098cd1f106fdc80f53c86b86442c80a561bf90"
+    },
+    {
+      "path": "studio/narration.py",
+      "decision": "copy",
+      "step": "V5",
+      "reason": "narration contract; 2nd _ask_llm_stable binding",
+      "exists": true,
+      "lines": 1107,
+      "sha256": "4be338403a72590dc063c8c3cd77b0fa624d934740bd1b691ae37ad0dc41bd7b"
+    },
+    {
+      "path": "studio/pptx.py",
+      "decision": "copy",
+      "step": "V5",
+      "reason": "renderer 2 of 2; injects the same Key Takeaways card",
+      "exists": true,
+      "lines": 1022,
+      "sha256": "4576bbee27c863573e973bc85ffc5fa9ba7c680d0f3aeffd227d101130a13d45"
+    },
+    {
+      "path": "studio/slides.py",
+      "decision": "copy",
+      "step": "V5",
+      "reason": "renderer 1 of 2; injects Key Takeaways",
+      "exists": true,
+      "lines": 758,
+      "sha256": "bacd3f20288f8cff4dd33c3c9a30ee72e89ad849b86df9a0baca8d8f7b853b07"
+    },
+    {
+      "path": "studio/speech.py",
+      "decision": "copy",
+      "step": "V5",
+      "reason": "TTS, contains_corrupt_text, spoken_token_set",
+      "exists": true,
+      "lines": 765,
+      "sha256": "01a8f7eb6efa94441954596b4a3f01fd36a81663877eb6dff21a527ea6031113"
+    },
+    {
+      "path": "studio/validate.py",
+      "decision": "copy",
+      "step": "V5",
+      "reason": "_render_blocking_problems, guard_plan",
+      "exists": true,
+      "lines": 530,
+      "sha256": "8204622ba8b29fc71401fb16e77ba6ab58f77aef847f45f14c05d068355f26a0"
+    },
+    {
+      "path": "studio/video.py",
+      "decision": "copy",
+      "step": "V5",
+      "reason": "renderer assembly; TTS + moviepy",
+      "exists": true,
+      "lines": 855,
+      "sha256": "2c7812a4bf4057a3363c048487f29fb5cf9f448998a4513de42dbbe2ea03a4b8"
+    },
+    {
+      "path": "studio/voice.py",
+      "decision": "copy",
+      "step": "V5",
+      "reason": "NarrationVoice + registry",
+      "exists": true,
+      "lines": 341,
+      "sha256": "5e77ac1357ca29ee04c0e05e040767775ed0da057fc0772089c750591d55d2c1"
+    },
+    {
+      "path": "__init__.py",
+      "decision": "drop",
+      "step": "never",
+      "reason": "every symbol is dead or is the deprecated shim",
+      "exists": true,
+      "lines": 280,
+      "sha256": "76b8622224a69700adfcc4c8c50d01e6d97e87289eb61bd14f331af2d86eee3a"
+    },
+    {
+      "path": "studio/__init__.py",
+      "decision": "drop",
+      "step": "never",
+      "reason": "a re-export facade; no new subpackage",
+      "exists": true,
+      "lines": 218,
+      "sha256": "783cdbdd43d4c5def807343fb9032c28d7d559285373b2e3f0b6124ab5b40b3c"
+    },
+    {
+      "path": "studio/__main__.py",
+      "decision": "drop",
+      "step": "never",
+      "reason": "serves python -m only; no second entry point",
+      "exists": true,
+      "lines": 7,
+      "sha256": "90cb28663858480203fa156f7593ee2bb0f00761373c063d88a3879c654f8153"
+    }
+  ],
+  "totals": {
+    "copy_modules": 16,
+    "copy_lines": 10492,
+    "drop_modules": 3,
+    "drop_lines": 505,
+    "total_lines": 10997
+  },
+  "by_step": {
+    "V1": 955,
+    "V2": 211,
+    "V4": 2505,
+    "V5": 6821
+  }
+}
