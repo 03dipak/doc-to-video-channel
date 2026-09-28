@@ -1,285 +1,333 @@
-doc-to-video-channel -- TODO
-============================
-Written 2026-09-28. Re-measure before citing any number in here; a status
-bullet is a measurement, not a setting. See AGENTS.md.
+doc-to-video-channel -- TODO / HANDOVER
+=====================================
+Written 2026-09-28. Re-measure before citing any number in here; a status bullet
+is a measurement, not a setting, not a fact about the past. See AGENTS.md.
 
-STATE: 1 of 33 ACs met. 0 of 8 build steps done. 740 LOC src, 855 LOC tests.
-Gate green: exit 0, 54 tests, 100% of 291 statements and 86 branches.
-The learner-only harness PASSES: 14 replayable steps pass, 1 is refused.
-Phase 0 landed (0394541). The storyboard layer landed after it (e16b355+).
-A green gate is not a working CLI -- all five verbs are declared and all five
-exit 3. The pipeline is not vendored until V1-V5.
 
-GATE (this project's own, not the engine's):
+=============================================================================
+RESUME HERE
+=============================================================================
+Two things, in this order. Nothing else is blocked.
+
+1. THE OWNER DECIDES: chaptered mode. Everything below is unblocked either way,
+   but V-4 is not -- see "OPEN, AND IT BREAKS A CONSTANT".
+
+2. THEN: V-1, the render spike. It is ready now and needs nothing from anybody.
+     * The render path is the baseline's, not ours. The spike runs the baseline
+       tree at VENDOR_REF (today: a7d63e0, created by V0).
+     * Call the renderer API DIRECTLY: render_slide, build_tts_script,
+       synth_scenes, assemble_video. NOT the CLI -- through the CLI a plan that
+       passes `verify` is then BLOCKED by `render`, and a spike with no gate must
+       not go through one.
+     * It MUST call video._write_webvtt itself. That function is reachable only
+       from _render_media, which sits behind the gate the spike skips, so without
+       it the artefact carries no .vtt at all.
+     * 5 scenes, not 1. MIN_SCENES is 5 and the gate refuses fewer in BOTH
+       branches. "One scene" is unreachable and was corrected.
+     * The plan is a FIXTURE and must be labelled one. The gate checks
+       source_refs for PRESENCE, not resolution, so a plan can point at nothing and
+       still pass. A green render whose provenance points at an invented file is
+       worse than no render, because it looks like evidence.
+
+
+=============================================================================
+STATE (measured 2026-09-28, HEAD 4ca8948, working tree clean)
+=============================================================================
+Gate green: exit 0, 54 tests passed, 100% of 291 statements and 86 branches.
   .venv/bin/ruff check src tests && .venv/bin/mypy src && .venv/bin/pytest
-  Shown to have teeth 2026-09-28: each tool was fed a violation it is
-  configured to see, and all three reported it. `mypy src` is kept because the
-  vendored tests carry 74 errors in 7 files; widening it breaks at V6.
+Learner-only harness PASSES: passed 14  failed 0  refused 1, harness exit 0.
+  .venv/bin/python -m doc_to_video_channel.harness storyboards/uv-install.storyboard.json
+802 LOC src, 918 LOC tests. 1 of 33 ACs met. 0 of 8 build steps done.
+
+A GREEN GATE IS NOT A WORKING CLI. All five verbs are declared and all five exit 3:
+build, review, tts-check, verify and render do nothing yet, and the pipeline they
+will call is not vendored until V1-V5. Do not read "Phase 0 complete" as "the tool
+runs". The gate command is `mypy src` and stays so: the 7 vendored test files carry
+74 mypy errors, so widening it breaks at V6. The channel's OWN tests are typed and
+pass `mypy tests` cleanly, so the V6 delta stays attributable.
 
 
-OWNER DECISIONS -- both RULED by mentor 2026-09-28
-----------------------------------------------------
+=============================================================================
+OPEN, AND IT BREAKS A CONSTANT -- THE OWNER'S CALL
+=============================================================================
+CHAPTERED MODE. 3-5 min per chapter x 5 chapters = 15-25 min. This design was
+built around a 4-minute video with MIN_SCENES=5 and TARGET_MAX_SCENES=8. An
+install session with a prerequisites card, a checkpoint per step and a failure
+scene does NOT fit that budget -- not marginally.
+
+What has to change: TARGET_MINUTES, and the scene budget, which becomes per
+CHAPTER rather than per video. Chaptered mode becomes the delivery shape.
+
+Better decided now than when plan_lesson refuses a legal-looking plan at V4 and
+the failure looks like a bug in the plan rather than a budget that never fitted.
+
+
+=============================================================================
+RULED (mentor, 2026-09-28) -- do not relitigate without new evidence
+=============================================================================
 D1. CAPTIONS: BURN THEM IN.
     Evidence: a published MP4 carries 2 streams (video, audio) and no subtitle
     track; 0 files in src/ contain burn-in, subtitle-mux or drawtext; 0 of 14
-    produced .vtt files contain a ::cue or STYLE block. The .vtt is produced
-    and attached to nothing. A caption that is not in the pixels has no glyph
-    height and no bounding box, so AC#30's instruments 1 and 2 were comparing
-    a measurable thing to an unmeasurable one and could not fail.
-    Why burn-in over muxing a soft track: the frame is the only artefact the
-    auditor can inspect, and "rendered pixels" is the only evidence channel
-    this project gives graphic-reviewer. Soft subtitles stay outside all of them.
+    produced .vtt files contain a ::cue or STYLE block. The .vtt is produced and
+    attached to nothing. A caption that is not in the pixels has no glyph height
+    and no bounding box, so AC#30's instruments 1 and 2 were comparing a
+    measurable thing to an unmeasurable one and could not fail.
+    Why burn-in over a soft track: the frame is the only artefact this project can
+    inspect, and "rendered pixels" is the only evidence channel AGENTS.md grants
+    graphic-reviewer. Soft subtitles stay outside all of them.
     Cost, stated not hidden: a new render stage that must cross BOTH renderers
     (pptx.py and slides.py), which per AGENTS.md is where a fix has silently
-    missed the other one four times.
-    Consequence: AC#30 instruments 1 and 2 are restored as pixel measurements
-    and the two provisional rows in the section 12 table are withdrawn.
+    missed the other one four times. Lands at V5.
+    Consequence: AC#30 instruments 1 and 2 are restored as pixel measurements and
+    the two provisional rows in the section 12 table are withdrawn.
 
 D2. LOUDNESS: GATE THE PUBLISHED FILE, not the pre-mux clip.
-    Evidence, re-measured 2026-09-28 on output/mod03_gates_v013.mp4:
+    Re-measured on output/mod03_gates_v013.mp4:
       published MP4      -16.7 LUFS,  -5.1 dBFS true peak
       pre-mux per clip   -16.1..-16.0 LUFS, -1.5 dBTP
       config target      -16.0 LUFS (LOUDNESS_TARGET), -1.5 dBTP (LOUDNESS_TP)
-    A18 reads the pre-mux clip, so its reading point is on the wrong side of
-    the mux boundary -- the same defect as AC#26, a control on the wrong side.
-    Band: integrated +/-1.0 LU (published measures -0.7, so it passes and the
-    band is not vacuous). True peak is a CEILING of <= -1.5 dBTP, not a band:
-    being quieter than the ceiling is not a defect, so a two-sided band would
-    invent one. Published measures -5.1, comfortably under.
+    A18 reads the pre-mux clip, so its reading point is on the wrong side of the
+    mux boundary -- the same defect as AC#26, a control on the wrong side.
+    Band: integrated -16.0 +/-1.0 LU, so the measured -16.7 passes and the band is
+    not vacuous. True peak is a CEILING of <= -1.5 dBTP, not a band: being quieter
+    than the ceiling is not a defect, so a two-sided band would invent one.
+    Both targets are env-overridable, which is why the measured value is quoted
+    and not the configured one.
+
+D3. ENRICHMENT: COVERAGE, NOT INVENTION.
+    If the source document is missing a step, enrichment does NOT write it. The
+    baseline's own docstring says the lever is "coverage, not invention", and
+    AC#19 already forbids fabrication on screen. A fabricated step would be on
+    screen, spoken by the narration, and stamped with a source_refs pointer to
+    something that does not say it.
+    Mechanism is DETECTION: _unclaimed_source_sections, claim-based with NO
+    token-overlap fallback -- overlap cannot tell "mentions the word" from
+    "teaches the concept" (measured: concept 4 scores 0.70 overlap on the single
+    word "tolerance", 0.75 after dropping common tokens).
+    THE CHANGE: in the baseline it is a soft_finding that never refuses, so an
+    untaught step can ship. Here it GATES. Every numbered concept must be claimed
+    or the build refuses. Expect the first build to fail on this. That is the
+    intent, not a regression.
+    CONSEQUENCE FOR THE SOURCE DOC: it must carry a NUMBERED concept list. The
+    detector prefers it and only falls back to inferred headings when it finds
+    fewer than 3 numbered entries, so a concept dropped from the list becomes
+    INVISIBLE rather than untaught. Ours carries 7.
+
+D4. THE SOURCE DOCUMENT IS OURS TO WRITE. I recommended against it; the owner
+    ruled otherwise and that is the decision. The provenance risk I named --
+    "if I author the source, the source becomes me" -- is handled by the artefact
+    rather than argued in prose: every claim in the file is tagged [MEASURED] or
+    [CITED], and the file's own header says it is an agent-authored measured
+    environment report, not vendor documentation. A video from it is grounded in
+    that, and must not imply it is Astral's.
 
 
-FIXED THIS CYCLE (mentor-proceeded, not left open)
---------------------------------------------------
-F1. A5 DANGLING REFERENCE -- this was a defect I introduced in 4dfe02f.
-    V1's done-when and AC#17(b) both forward-referenced "the step that
-    carries A5", and no step in section 5.5 carried A5. That is a forward
-    reference to a step that does not exist -- the exact DOCS.md rule 8
-    violation fixed elsewhere in the same commit.
-    Ruling: A5 lands in V1. load_documents arrives in V1 (util.py, section 5.1
-    row 14) and A5 extends that same function, so it is a change to a file V1
-    already copies. Placing it in a later step would mean shipping a reader that
-    raises UnicodeDecodeError on .docx and calling the tree green.
-    Consequence: V1 carries A5, and AC#17(b) unblocks at V1 rather than
-    hanging on a step with no number.
-
-
-SOURCE DOCUMENT -- owner ruled 2026-08-28 that the agent writes it. Written; see
-the entry below. This supersedes the "I am not writing it" position, which was a
-recommendation and the owner decided otherwise. The provenance risk it named is
-handled by the [MEASURED]/[CITED] tagging in the file itself.
-------------------------------------------------------------------------------
-Measured 2026-08-28: this repo contains ONLY design records -- every .md in it is
-a design document. There is no corpus/ and no sources/ directory, so the channel
-has no tutorial source at all. AGENTS.md already records this for the engine
-(find -iname "*histor*" -o -iname "*narrativ*" returns 0 hits across both trees)
-and says every claim about that corpus is UNVERIFIED until a real document is
-supplied, and that a synthetic fixture must not stand in for one without saying
-so.
-
-WHY V-1 DOES NOT NEED IT, measured rather than argued:
-  cli.main's `render` branch spans lines 589-660 and calls NEITHER
-  load_documents NOR plan_lesson -- it reads a saved plan.json. So the spike is a
-  RENDER-PATH test, not a content test, and needs no document to plan from.
-  What the gate does require is per-scene `topic` and a non-empty `source_refs`
-  list (validate.py's _scene_metadata_problems), and that check is PRESENCE, NOT
-  RESOLUTION: the refs are never opened and never have to exist.
-
-WHY THAT IS EXACTLY WHY THE SPIKE MUST BE LABELLED:
-  A presence-only check means a plan can point source_refs at nothing and still
-  pass. That is fabricating provenance -- the one thing this project exists to
-  prevent (the description is "code decides what is true"). So the V-1 fixture
-  plan must carry an explicit fixture marker and its source_refs must SAY it is a
-  fixture. A green render whose provenance points at an invented file is worse
-  than no render, because it looks like evidence.
-
-WHY I AM NOT WRITING IT:
-  If I author the uv install document, the source becomes me. The video would
-  then carry a provenance stamp pointing at my own invention, teaching possibly
-  wrong install steps with the appearance of grounding -- "beautiful and wrong",
-  which AGENTS.md names as the failure the viewer role is the only one to see and
-  is explicitly NOT scoped to judge (truth belongs to the grounding gates). The
-  document must be the owner's, or be a real upstream source that can be cited.
-
-WHAT THE DOCUMENT MUST CONTAIN, for build to accept it:
-  * Real, correct, ORDERED uv install steps. Ordered matters: the viewer role's
-    whole subject is whether each command is shown before it is used.
-  * Enough distinct material for at least MIN_SCENES=5 and at most 8 scenes, or
-    plan_lesson cannot produce a legal plan and the gate refuses it.
-  * Verifiable commands whose output the narration can state truthfully.
-  * In a format A5 reads. .md is the low-risk choice; .docx only after A5 lands
-    at V1, and never advertised in README or --help before then.
-  * Passing the A41 source allow-list, and not on the A33 content-hash blocklist.
-  * Something that is not the engine's excluded school corpus (A33).
-
-
-ENRICHMENT RULED (mentor 2026-08-28) -- coverage, not invention.
-  If the source document is missing a step, enrichment does NOT write it. The
-  baseline's own docstring says the lever is "coverage, not invention", and
-  AC#19 already forbids fabrication on screen. The mechanism is detection:
-  _unclaimed_source_sections reports sections no scene claimed, judged by the
-  assignment's own record -- claim-based, with NO token-overlap fallback, because
-  overlap cannot tell "mentions the word" from "teaches the concept" (measured:
-  concept 4 scores 0.70 overlap on the single word "tolerance", 0.75 after
-  dropping common tokens).
-  THE CHANGE: in the baseline it is a soft_finding that never refuses, so an
-  untaught step can ship. Here it GATES. Every numbered concept must be claimed or
-  the build refuses. Expect the first build to fail on this -- that is the point.
-  CONSEQUENCE FOR THE SOURCE DOC: it must carry a numbered concept list. The
-  detector prefers it and only falls back to inferred headings when it finds
-  fewer than 3 numbered entries. A concept dropped from the list becomes
-  INVISIBLE rather than untaught. sources/uv-getting-started.md carries 7.
-
-
-THE SOURCE DOCUMENT -- WRITTEN. sources/uv-getting-started.md
+=============================================================================
+BUILT AND PASSING
+=============================================================================
+sources/uv-getting-started.md
   Every claim tagged [MEASURED] (executed, output quoted verbatim) or [CITED]
   (from uv's own --help for 0.12.2). Environment of record: uv 0.12.2
   x86_64-unknown-linux-gnu, system python3 3.14.4, Linux.
-  This is how the provenance concern is satisfied rather than argued: the file is
-  an honest MEASURED ENVIRONMENT REPORT by an agent, and it says so in its own
-  header. A video from it is grounded in that, and must not imply it is vendor
-  documentation. It also states what it does NOT claim -- installers, uv tool
-  install, packaging, workspaces, private indexes -- because a source document
-  that overstates itself teaches a video to overstate itself.
+  It states what it does NOT claim -- installers, uv tool install, packaging,
+  workspaces, private indexes -- because a source document that overstates itself
+  teaches a video to overstate itself. Installers are excluded specifically
+  because this machine already had uv on PATH and recording an install procedure
+  the document never executed would be the fabrication the header forbids.
   7 numbered concepts, against MIN_SCENES=5 and TARGET_MAX_SCENES=8.
+  KNOWN WEAKNESS, audited 2026-09-28: as a practical session it scores 5 of 8 gap
+  classes and 0 of 7 steps have a failure path. It is a good EXPLAINER and a bad
+  SESSION SCRIPT. That is why the storyboard exists -- do not try to fix the
+  document into a session script.
+
+storyboards/uv-install.storyboard.json
+  5 chapters, 15 steps, the 6-field step contract on every step, plus env,
+  creates_indirectly and expected_exit_code where a step needs them.
+  14 replayable; install-uv is NOT, because it installs software and rewrites the
+  shell profile, so re-running it would change the machine under the test. Exempt
+  WITH a stated reason, and the loader refuses an exemption that has none.
+  src/doc_to_video_channel/storyboard.py runs FIVE checks: contract completeness,
+  elision, unshown-state, undelivered-state, unjustified-env.
+  23 tests, 5 of which are named `test_mutation_*` and prove the checks can fail:
+  remove a creating step, blank a command, elide one, strip a replay_skip_reason,
+  and prose claims creation the command does not make. Two further cases --
+  dropping an indirect declaration, and naming the wrong file in one -- also prove
+  the fourth check and are counted among these five.
+  RULED: the storyboard is the SINGLE source for two consumers -- the renderer and
+  the harness. A harness that parsed a transcript of the finished video would be
+  testing the transcription, not the video.
+
+src/doc_to_video_channel/harness.py
+  19 tests, 2 of which are named `test_mutation_*`, and the one that matters is:
+  break a real command, demand exit 1.
+  It never repairs. A failure is reported with command, exit code, output and the
+  pattern it did not match, because a harness that loosened an expectation to get
+  a green run would be reject-never-repair, just relocated.
 
 
-THE STORYBOARD -- BUILT. storyboards/uv-install.storyboard.json
-  5 chapters, 15 steps, 6-field step contract on every step. 14 replayable, 1 not
-  (install-uv: it installs software and rewrites the shell profile, so re-running
-  changes the machine under the test -- exempt WITH a stated reason).
-  src/doc_to_video_channel/storyboard.py loads and checks it: contract
-  completeness, elision, unshown-state, and undelivered-state. 35 tests, SEVEN of
-  which are MUTATIONS proving the checks can fail.
-  Ruled: the storyboard is the SINGLE source for two consumers -- the renderer and
-  the replay/learner-only harness. A harness that parsed a transcript of the
-  finished video would test the transcription, not the video.
+=============================================================================
+WHAT THE CHECKS GOT WRONG -- expensive to rediscover, so it is written down
+=============================================================================
+Same shape as the defect the source document shipped with, one layer up: a check
+that cannot fail, or that fails wrongly, is worse than none because it is
+believed.
 
-  WHAT THE CHECKS GOT WRONG, because it is the same shape as the source document's
-  own defect -- a validator that cannot fail, or that fails wrongly:
-    * 3 false alarms on the first run, ALL 3 bugs in the check. Two were false
-      NEGATIVES: a trailing full stop made "Creates src/main.py." yield
-      "src/main.py.", so the step that CREATES the file looked like it did not.
-    * a DEAD `mkdir` branch, found by a test: it tested token.startswith("-p ") but
-      "mkdir -p src" splits into three tokens, so no token contains a space and the
-      branch could never fire. It read as if mkdir was handled. It was not.
-    * an rstrip ORDER bug: "a/.".rstrip("/") is a no-op, and the later punctuation
-      strip then leaves "a/" -- a path no file satisfies, so a step merely MENTIONING
-      it in prose would be refused.
-    * a check that cried wolf 8 times on the real storyboard: inferring tool side
-      effects from the command text cannot tell that `uv init` created
-      pyproject.toml, because the command never names it. All 8 were false
-      positives. Replaced with a DECLARED `creates_indirectly` field that a human
-      can falsify by reading.
-    * the check that prose alone satisfied a step's own state -- so a step whose
-      command became `cat > /dev/null` while its prose still said "Creates
-      src/main.py." passed. That is now undelivered-state, and it is separate
-      precisely because the unshown-state check CANNOT see it: the next step
-      legitimately declares the file in its precondition.
-    * 3 lines removed as provably dead, and a duplicated docstring.
-  Coverage is 100% of 173 statements and 48 branches, but that number was only
-  reached after coverage was run and the misses were each explained or fixed. It
-  was 93% when first measured.
+  * A step whose command became `cat > /dev/null` while its prose still said
+    "Creates src/main.py." PASSED every check. unshown-state cannot see it and
+    cannot be asked to: the next step legitimately declares the file in its
+    precondition. That is why undelivered-state is a SEPARATE check.
+  * Prose satisfied a step's OWN state. A `state_change` promise may satisfy a
+    LATER step; it may not satisfy the step that makes it.
+  * A check that cried wolf 8 times on the real storyboard, all 8 false
+    positives: inferring a tool's side effects from command text cannot tell that
+    `uv init` created pyproject.toml, because the command never names it. Only a
+    redirect and mkdir are visible. Replaced with a DECLARED creates_indirectly
+    field a human can falsify by reading.
+  * A DEAD mkdir branch, found by a test: it tested token.startswith("-p ") but
+    "mkdir -p src" splits into three tokens, so no token contains a space and the
+    branch could never fire. It read as if mkdir was handled. It was not.
+  * An rstrip ORDER bug: "a/.".rstrip("/") is a no-op (it ends in a dot), and the
+    later punctuation strip then leaves "a/" -- a path no file satisfies, so a step
+    merely MENTIONING it in prose would be refused. Order is punctuation, then
+    slash.
+  * 3 false alarms on the first run, ALL 3 bugs in the check. Two were false
+    NEGATIVES: a trailing full stop made "Creates src/main.py." yield
+    "src/main.py.", so the step that CREATES the file looked like it did not.
+  * A URL read as a local path: https://astral.sh/uv/install.sh became
+    astral.sh/uv/install.sh, so every install step was reported as depending on a
+    nonexistent file.
+  * expected_output_pattern was scanned for paths that must pre-exist, but it is
+    what a step PRINTS -- so every checkpoint was reported as an unshown
+    dependency, when naming a path the learner should now see is precisely a
+    checkpoint's job.
+  * 3 lines removed as provably dead, and a duplicated docstring.
+  * The unjustified-env check first treated an empty `env: {}` as "set" and fired
+    on 5 innocent steps; and my insert landed inside an `if` body so it only ran
+    for non-replayable steps, which a 0-gap result exposed.
+  * A WEAK EXPECTED PATTERN, found by constructing the exact bad state: the old
+    `^(pyproject\.toml|uv\.lock):0$` PASSED when rich was recorded in
+    pyproject.toml but NOT in uv.lock -- a half-dirty project certified clean, on
+    the very claim the step exists to prove.
 
-OPEN, AND IT BREAKS A CONSTANT: CHAPTERED MODE.
-  3-5 min per chapter x 5 chapters = 15-25 min. This design assumed a 4-minute
-  video with MIN_SCENES=5 and TARGET_MAX_SCENES=8. An install session with a
-  prerequisites card, a checkpoint per step and a failure scene does NOT fit that
-  budget. TARGET_MINUTES and the scene budget must change, and the budget is per
-  CHAPTER, not per video. Better decided now than when plan_lesson refuses a
-  legal-looking plan at V4.
+BUILDING THE HARNESS FOUND THREE CONTRACT GAPS, which is the argument for building
+the consumer before the producer:
+  * `env` -- prove-not-on-path expects `uv: not found`, but uv IS on PATH here, so
+    the step was unrunnable as written and nothing said so. Steps declare
+    env.path_exclude plus a MANDATORY why.
+  * `expected_exit_code` -- `grep -c` EXITS 1 when the count is zero, so
+    prove-with-not-recorded SUCCEEDS with a failure code. That is the "expected
+    warnings versus actual errors" gap, and the contract had nowhere to record it.
+    The report now labels a non-zero exit as teaching, not failing.
+  * the weak pattern above.
 
-THE HARNESS -- BUILT AND PASSING. src/doc_to_video_channel/harness.py
-  Run: .venv/bin/python -m doc_to_video_channel.harness storyboards/<file>
-  MEASURED 2026-09-28: passed 14  failed 0  refused 1, harness exit 0. That is the
-  learner-only result: a learner following ONLY what is on screen reaches the end
-  state. It runs in a scratch directory, carries the working directory across
-  steps (a learner's shell does not forget where it is), and REFUSES install-uv
-  with its reason rather than installing software underneath the test.
-  It never repairs. A failed step is reported with command, exit code, output and
-  the pattern it did not match, because a harness that loosened an expectation to
-  get a green run would be the reject-never-repair violation.
-  21 harness tests, 1 of which is THE mutation: break a real command and demand
-  exit 1. It had to be rewritten once -- the first version broke a command
-  referencing a path nothing creates, and the contract check refused the board
-  before running anything. Correct behaviour, wrong test: it proved the validator
-  again. The shipped mutation survives validation and fails at execution.
+TWO PROCESS SLIPS, recorded because the numbers looked fine while they happened:
+  * I removed a sys.argv fallback while tidying, so the harness printed help and
+    exited 2. My first "passing" run was NOT a run at all. It looked like a
+    failure to read, not a bug, which is why it is written down.
+  * The harness mutation had to be written TWICE. The first version broke a
+    command referencing a path nothing creates, and the contract check refused the
+    board before a single command ran -- correct behaviour, WRONG TEST, because it
+    proved the validator again rather than the runner. The shipped mutation uses a
+    path the storyboard really declares, so the board is valid, it executes, and it
+    fails on output. Verified it fails for that reason and not another.
 
-  BUILDING IT FOUND THREE CONTRACT GAPS, which is the argument for building the
-  consumer before the producer:
-    * `env` -- prove-not-on-path expects `uv: not found`, but uv IS on PATH here,
-      so the step was unrunnable as written and nothing said so. Steps now declare
-      `env.path_exclude` plus a mandatory `why`; unjustified-env is a fifth check.
-    * `expected_exit_code` -- `grep -c` EXITS 1 when the count is zero, so
-      prove-with-not-recorded SUCCEEDS with a failure code. That is the
-      "expected warnings versus actual errors" gap, and the contract had nowhere to
-      record it. The report now labels a non-zero exit as teaching, not failing.
-    * A WEAK EXPECTED PATTERN, found by constructing the exact bad state: the old
-      `^(pyproject\.toml|uv\.lock):0$` PASSED when rich was recorded in
-      pyproject.toml but not uv.lock -- a half-dirty project certified clean, on the
-      very claim the step exists to prove. Now `^pyproject\.toml:0$\n^uv\.lock:0$`.
+Coverage reached 100% only after coverage was run and each miss was explained or
+fixed. storyboard.py was 93% when first measured, harness.py had 8 uncovered lines
+including a timeout branch nobody had ever triggered.
 
 
-TODO -- BUILD ORDER (0 of 8 done)
----------------------------------
-[x] V-1   SPARK: 5-scene uv render, model-free, direct renderer API (NOT the
-          CLI -- through the CLI a plan that passes verify is then BLOCKED by
-          render, and a spike with no gate must not go through one). Must call
-          video._write_webvtt itself; that is reached only from _render_media,
-          behind the gate the spike skips. Closes the start of AC#30.
-[ ] V0    section 5.1 table + vendor_manifest.json + the tree's first commit.
-          Closes AC#33. Creates VENDOR_REF, which does not exist yet -- 0
-          occurrences in the baseline, value today is a7d63e0.
-[ ] V1    util.py + text.py + config.py -- 955 lines. THREE zero-internal-import
-          modules, so this step is importable before anything else exists.
-          Plus A5 (the .docx reader, per F1). Closes AC#17(a) and (b).
-          Must not silently truncate: 2 properties, falsifiable on a synthetic
-          source today.
-[ ] V2    topics.py + schema.py -- 211 lines. Closes AC#6 (Devanagari
-          `section` rejected, Latin accepted), AC#7 (SectionKind is a type and
-          the schema enforces it -- fixes the two-spelling defect).
-[ ] V3    BRAND_NAME + BRAND_FOOTER -- 2 lines. Closes AC#31. PACKAGE_NAME must
-          render on 100% of runtime frames.
-[ ] V4    plan.py -- 2,505 lines, ALONE. Carries section 5.6's harness IN THE
-          SAME COMMIT, not after it: the harness's purpose is to run
-          plan_lesson, and plan_lesson arrives with V4, so gating the harness
-          separately would gate a function that does not exist yet.
-          Closes AC#18-#24.
-[ ] V5    the remaining 10 modules -- 9,326 lines -- PLUS write_media, the
-          fixture-refusal chokepoint that both render call sites reach. This is
-          where the withdrawn `publish` verb's control now lives. Closes
-          AC#25, AC#26, AC#13.
-[ ] V6    the 7 test files, import-rename only. Closes AC#32 -- the collection
-          report must show the expected count AND the run count, so a silently
-          skipped file is visible.
-[ ] V7    the seam (Phase 1): behavioural differential, ownership audit, the
-          two renderers x every SectionKind.
+=============================================================================
+FIXED THIS CYCLE
+=============================================================================
+A5 DANGLING REFERENCE -- a defect I introduced in 4dfe02f. V1's done-when and
+AC#17(b) both forward-referenced "the step that carries A5", and no step in
+section 5.5 carried A5: a forward reference to a step that does not exist, which
+is the exact DOCS.md rule 8 violation fixed elsewhere in the same commit.
+Ruling: A5 lands in V1, because load_documents arrives in V1 (section 5.1 row 14)
+and A5 extends that same function. Placing it later would mean shipping a reader
+that raises UnicodeDecodeError on .docx and calling the tree green. AC#17(b)
+therefore unblocks at V1 rather than hanging on a step with no number.
 
-  NONE OF V0-V7 IS BLOCKED BY THE MISSING DOCUMENT -- the spike plans nothing and
-  the later steps are mechanical. What the document blocks is the first video
-  that a human watches: `build` is source doc -> load_documents -> plan_lesson ->
-  render, and there is no step after V7 that can run without it. So the document
-  is on the critical path to SHIPPING, not to BUILDING. Do not let that
+
+=============================================================================
+BUILD ORDER (0 of 8 done)
+=============================================================================
+[ ] V-1  SPARK. See RESUME HERE. Closes the start of AC#30.
+[ ] V0   section 5.1 table + vendor_manifest.json + the tree's first commit.
+         Closes AC#33. Creates VENDOR_REF, which does not exist yet -- 0
+         occurrences in the baseline; its value today is a7d63e0.
+[ ] V1   util.py + text.py + config.py -- 955 lines. Three zero-internal-import
+         modules, so this step imports before anything else exists. Plus A5.
+         Closes AC#17(a) and (b). Must not silently truncate: two properties,
+         falsifiable on a synthetic source today.
+[ ] V2   topics.py + schema.py -- 211 lines. Closes AC#6 (Devanagari `section`
+         rejected, Latin accepted) and AC#7 (SectionKind is a type and the schema
+         enforces it -- fixes the two-spelling defect).
+[ ] V3   BRAND_NAME + BRAND_FOOTER -- 2 lines. Closes AC#31. PACKAGE_NAME must
+         render on 100% of runtime frames.
+[ ] V4   plan.py -- 2,505 lines, ALONE. Carries section 5.6's harness IN THE SAME
+         COMMIT, not after it: the harness's purpose is to run plan_lesson, and
+         plan_lesson arrives with V4, so gating the harness separately would gate a
+         function that does not exist yet. Closes AC#18-#24.
+[ ] V5   the remaining 10 modules -- 9,326 lines -- PLUS write_media, the
+         fixture-refusal chokepoint both render call sites reach. This is where
+         the withdrawn `publish` verb's control now lives. Closes AC#25, AC#26,
+         AC#13. Also the burn-in stage from D1.
+[ ] V6   the 7 test files, import-rename only. Closes AC#32 -- the collection
+         report must show the expected count AND the run count, so a silently
+         skipped file is visible.
+[ ] V7   the seam (Phase 1): behavioural differential, ownership audit, the two
+         renderers x every SectionKind.
+
+  NONE OF V0-V7 IS BLOCKED BY THE MISSING DOCUMENT. The spike plans nothing and
+  the later steps are mechanical. What the document blocks is the first video a
+  human watches: build is source doc -> load_documents -> plan_lesson -> render.
+  So it is on the critical path to SHIPPING, not to BUILDING. Do not let that
   distinction hide it: an unrunnable channel and an unwatched channel are both
-  zero.
+  zero. (Ours is written, so this is now about the NEXT document, not this one.)
 
 
+=============================================================================
 DO NOT REINTRODUCE
-------------------
+=============================================================================
 * `publish` subcommand. Withdrawn 2026-09-28. A verb nobody is obliged to run
-  gates nothing, and re-reading a manifest to print a verdict is `verify` under
-  a second name. Its control is write_media. A test fails if it returns.
-* A second entry point. P0-d: one. Do not add a deprecated console-script shim
-  the way the baseline does.
+  gates nothing, and re-reading a manifest to print a verdict is `verify` under a
+  second name. Its control is write_media. A test fails if it returns.
+* A second entry point. P0-d: one. Do not add a deprecated console-script shim the
+  way the baseline does.
 * `mypy src` widened to `tests` before V6 -- it breaks on 74 vendored errors.
 * An exit code added to the section 12.1 table without a test that reaches it.
-  Three of five codes are currently unreachable; 0, 2 and 3 are the tested ones.
+  Codes 0, 2 and 3 are tested; 1 and 4 are not yet reachable.
+* A harness that "helpfully" adjusts an expectation to make a run green. That is
+  reject-never-repair, relocated.
+* Inference where a declaration belongs. The creates_indirectly field exists
+  because inferring tool side effects produced 8 false positives. Prefer a claim a
+  human can falsify by reading.
 
 
-FILE:LINE IS A SEARCH HINT WITH A SHELF LIFE
----------------------------------------------
-Cite symbols. The engine's CALL-FLOW.md has 51 unique anchors, none pointing
-at the right line (median drift -813 lines). A doc that tracks another doc must
-be re-read after that doc is edited, or it will cite its own change as
-pre-existing -- which happened twice in this file's own history today: AGENTS.md
-and LLD AC#2 both asserted a status that was true when written and false within
-the hour.
+=============================================================================
+HOW TO WORK HERE
+=============================================================================
+Cite SYMBOLS, not file:line. The engine's CALL-FLOW.md has 51 unique anchors,
+none pointing at the right line (median drift -813 lines).
+
+A number in a document is re-derived or deleted. This file has been wrong twice
+today: AGENTS.md and LLD AC#2 both asserted a status that was true when written
+and false within the hour. A doc that tracks another doc must be re-read after
+that doc is edited, or it will cite its own change as pre-existing.
+
+Write the WRONG INPUT FIRST and confirm it fails. This is not a stylistic
+preference here -- it is how the engine shipped 315 tests and a gate that passes a
+fabricated date in the narration (docs/scratch.md section 1). A check that has
+only ever been shown a true statement is untested.
+
+Record the POPULATION a count was taken over. The engine publishes
+`unclaimed_source_sections: 0` beside `source_sections: 12` -- two different 12s,
+numerator over 8 -- and it reads as 100% coverage.
+
+Rendered evidence is available: soffice and pdftoppm are installed. Give soffice a
+private profile or a second invocation silently no-ops:
+  -env:UserInstallation=file:///tmp/lo_profile_<unique>
+
+Use .venv/bin/python, never bare python3. The engine's own tests, when you need
+them, run from ../doc-to-video-tutor/.venv/bin/.
