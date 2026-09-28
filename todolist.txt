@@ -34,9 +34,11 @@ Two things, in this order. Nothing else is blocked.
 6. DONE: V2. 211 lines, both byte-identical; AC#7 needed a real change and
    AC#6 turned out to be already met. See "V2 -- DONE" below.
 
-7. THEN: V3 -- BRAND_NAME / BRAND_FOOTER in config.py, which arrived WHOLE at V1.
-   So V3 is a CHANGE to a module that already exists, not a copy of two lines.
-   Closes AC#31. One scene rendered, frames sampled, old brand absent.
+7. DONE: V3. AC#31 PROVEN IN PIXELS, not asserted in config. And the first
+   attempt was measuring nothing, which the differential caught. See below.
+
+8. THEN: V4 -- plan.py, 2,505 lines, ALONE, carrying the section 5.6 harness IN THE
+   SAME COMMIT. Closes AC#18-#24. This is the biggest single step so far.
 
 6. NOT BUILT, ON PURPOSE: the files themselves. V0 measures intent; V1-V5 copy.
    A manifest built from the LLD's table would agree with the table by
@@ -99,6 +101,12 @@ WHAT IS TRUE, AND IS ABOUT THE WORK RATHER THAN A MEASUREMENT:
   * V1 DONE. 955 lines vendored byte-identical, A5 fixed, AC#17(a) found FALSE in
     the copied code and fixed.
   * V2 DONE. 211 lines, AC#7 turned out to need a real change, A44 found.
+  * V3 DONE. AC#31 proven in pixels. A44 RE-RULED: the narration script check is
+    VOICE-RELATIVE, because the engine's DEFAULT voice mhe-mix is hi-IN-SwaraNeural
+    and can pronounce Devanagari -- so an absolute refusal would break the default.
+    Deferred to V5, where voice.py lives, because schema.py importing it would
+    invert the build order. A half-applied refusal would be a WORSE defect than the
+    one being fixed.
   * The vendored modules live in doc_to_video_channel/studio/ -- see the path
     mapping below. The façade is still dropped; our marker re-exports nothing.
 
@@ -353,6 +361,36 @@ BASELINE PATH -> OUR PATH. Read this before looking for a file.
   There is NO flat path. doc_to_video_channel.util raises ModuleNotFoundError, and
   a test holds it that way, because two spellings of one module is the drift the
   dropped facade existed to prevent.
+
+=============================================================================
+V3 -- DONE. AC#31 PROVEN IN PIXELS. A config read proves nothing.
+=============================================================================
+  V3 is ONE changed line, not two. `BRAND_NAME = PACKAGE_NAME` and the footer is an
+  f-string over it, so changing PACKAGE_NAME re-brands the header, the footer and
+  the deck without touching either of them. The LLD's "2 lines" reads as two
+  independent edits and is not.
+
+  THE MEASUREMENT, and the first attempt proved NOTHING. Rendering the scene three
+  times -- reference brand, channel brand, and a nonsense control -- and requiring
+  all three to differ pairwise: the first run produced THREE BYTE-IDENTICAL
+  frames and reported INCONCLUSIVE, which was the correct result.
+
+  ROOT CAUSE, and it is a trap worth knowing: slides.py does
+  `from .config import BRAND_FOOTER`, so config values are SNAPSHOTTED AT IMPORT.
+  Patching config.BRAND_FOOTER at runtime changes nothing the renderer can see.
+  The fix was to patch the renderer's own binding. A check that cannot tell "the
+  brand is right" from "the brand is not rendered at all" is not a check, and this
+  one is built to fail closed in exactly that case.
+
+  MEASURED after the fix: reference 0c22cf05b59aabce, channel bcbf379b908ebfee,
+  control 447395f6b6f61cc4 -- all three differ. Plus a determinism control: a
+  re-render of the same scene reproduces the frame exactly, so the differences are
+  attributable to the brand rather than to a nondeterministic renderer.
+
+  ALSO FIXED IN THE HARNESS: slides.py imports only BRAND_FOOTER, not
+  PACKAGE_NAME, so patching the latter silently CREATED an attribute that did not
+  exist. Harmless, and it would have hidden a real binding change later.
+
 
 =============================================================================
 V2 -- DONE. 211 lines. AC#7 needed a real change; AC#6 was already met.

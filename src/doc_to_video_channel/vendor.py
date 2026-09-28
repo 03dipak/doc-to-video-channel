@@ -73,6 +73,14 @@ class Module:
     decision: str  # "copy" | "drop"
     step: str  # "V1".."V5", or "never" for a drop
     reason: str
+    #: What WE changed in this file, if anything. **The manifest's sha256 shows THAT a
+    #: file diverges from the baseline; it cannot show WHAT changed**, so a reader
+    #: comparing hashes learns that `config.py` was edited and nothing more. Measured:
+    #: the first divergence (V3's brand change) broke a V1 test that asserted
+    #: verbatim equality for `config.py`, and the fix was to record the edits rather
+    #: than to relax the test -- because a test that cannot say which files are
+    #: expected to diverge has to be edited at every step.
+    channel_edits: tuple[str, ...] = ()
 
     @property
     def is_copy(self) -> bool:
@@ -83,11 +91,37 @@ class Module:
 #: `step` is the extra information the LLD's table does not carry, and it is what
 #: makes the manifest actionable rather than merely descriptive.
 MODULES: Final[tuple[Module, ...]] = (
-    Module("studio/util.py", "copy", "V1", "LoadedSource, load_documents; zero internal imports"),
+    Module(
+        "studio/util.py",
+        "copy",
+        "V1",
+        "LoadedSource, load_documents; zero internal imports",
+        (
+            "A5: _load_docx + the .docx/.doc branch in load_documents",
+            "two return annotations, so the strict gate stays whole",
+            "AC#17(a): the half-window floor, applied to the space fallback as well "
+            "as the heading preference",
+        ),
+    ),
     Module("studio/text.py", "copy", "V1", "_has_non_latin_script, _nar_tokens; zero imports"),
-    Module("studio/config.py", "copy", "V1", "_SECTIONS, _ENUM_HINTS, both prompts, VENDOR_REF"),
+    Module(
+        "studio/config.py",
+        "copy",
+        "V1",
+        "_SECTIONS, _ENUM_HINTS, both prompts, VENDOR_REF",
+        ("V3: PACKAGE_NAME re-branded, which propagates to BRAND_NAME and BRAND_FOOTER",),
+    ),
     Module("studio/topics.py", "copy", "V2", "_BANNED_NGRAMS consumers"),
-    Module("studio/schema.py", "copy", "V2", "SlideScene, LessonPlan; the only Pydantic models"),
+    Module(
+        "studio/schema.py",
+        "copy",
+        "V2",
+        "SlideScene, LessonPlan; the only Pydantic models",
+        (
+            "AC#7: section is now SectionKind | None, a Literal over the five "
+            "canonical members, with a spelling canonicaliser",
+        ),
+    ),
     Module("studio/plan.py", "copy", "V4", "planner; hosts the _extra_gates registry"),
     Module("studio/cli.py", "copy", "V5", "the build path; 5 subcommands"),
     Module("studio/duration.py", "copy", "V5", "the duration formula and duration_verdict"),
@@ -149,7 +183,10 @@ def build_manifest(engine: Path, generated: str) -> dict[str, Any]:
         exists = target.is_file()
         entries.append(
             {
-                **asdict(module),
+                **{
+                    k: (list(v) if isinstance(v, tuple) else v)
+                    for k, v in asdict(module).items()
+                },
                 "exists": exists,
                 "lines": len(target.read_text(encoding="utf-8").splitlines())
                 if exists

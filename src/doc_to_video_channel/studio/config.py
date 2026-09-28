@@ -349,7 +349,18 @@ _SOFT_PREFIXES = ("narration pure-English",
                    "unspoken visual claim",
                    "narration still speaks about",
                    "source section not covered")
-PACKAGE_NAME = "doc-to-video-tutor"
+# --- V3: the brand. ONE line changed, and it propagates to two others. --------
+#
+# The LLD describes V3 as "BRAND_NAME / BRAND_FOOTER -- 2 lines", which reads as
+# two independent edits. It is not: `BRAND_NAME = PACKAGE_NAME` and the footer is
+# an f-string over it, so changing `PACKAGE_NAME` below re-brands the slide header,
+# the footer and the deck without touching either of them. The other 15 modules
+# arrived with the old string in them, which is why this is a CHANGE to a module
+# that already landed at V1 rather than a copy of two lines.
+#
+# The new value is the package name from `pyproject.toml`, so the brand and the
+# distribution cannot disagree.
+PACKAGE_NAME = "doc-to-video-channel"
 PACKAGE_VERSION = "0.1.0"
 BRAND_NAME = PACKAGE_NAME
 BRAND_TAGLINE = "learn by listening"

@@ -47,23 +47,33 @@ def test_the_copies_are_the_manifests_files_with_annotations_added() -> None:
     package = Path(__file__).resolve().parents[1] / "src/doc_to_video_channel"
     manifest_path = package / "vendor_manifest.json"
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-    recorded = {e["path"]: e["sha256"] for e in manifest["modules"]}
     root = package / "studio"
 
     import hashlib
 
-    for name, key in (("text.py", "studio/text.py"), ("config.py", "studio/config.py")):
-        digest = hashlib.sha256((root / name).read_bytes()).hexdigest()
-        assert digest == recorded[key], (
-            f"{name} is NOT the manifest's file: a verbatim copy should hash "
-            f"{recorded[key][:12]}, this is {digest[:12]}"
-        )
-
-    digest = hashlib.sha256((root / "util.py").read_bytes()).hexdigest()
-    assert digest != recorded["studio/util.py"], (
-        "util.py should differ from the manifest's hash, because A5 and the two "
-        "annotations were added to it. If it matches, the edits were lost."
-    )
+    # Derived from the manifest's `channel_edits`, not from a hardcoded list. V3
+    # re-branded config.py, which broke this test -- and the right response was to
+    # RECORD the edits rather than to relax the assertion, because a test that
+    # cannot say which files are expected to diverge has to be edited at every step.
+    for entry in manifest["modules"]:
+        if entry["decision"] != "copy":
+            continue
+        name = Path(entry["path"]).name
+        target = root / name
+        if not target.is_file():
+            continue  # not landed yet
+        digest = hashlib.sha256(target.read_bytes()).hexdigest()
+        edits = list(entry.get("channel_edits") or [])
+        if edits:
+            assert digest != entry["sha256"], (
+                f"{name} records {len(edits)} channel edit(s) but is byte-identical "
+                f"to the baseline, so the edits were lost"
+            )
+        else:
+            assert digest == entry["sha256"], (
+                f"{name} has no recorded channel edits, so it must be a verbatim "
+                f"copy: baseline {entry['sha256'][:12]}, this is {digest[:12]}"
+            )
 
 
 def test_the_scene_budget_is_the_one_the_lld_cites() -> None:
