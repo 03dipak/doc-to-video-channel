@@ -1372,6 +1372,85 @@ material for a legal plan, and few enough that every entry can be claimed.
 will find coverage failures the baseline would have shipped. That is the intent,
 and the first build may well fail on it.
 
+### 12.4 The session is a second artifact, and it breaks a constant
+
+**The bar is different from an explainer, and the difference is measurable.** A
+practical session must satisfy: *a learner who starts from the stated state and
+follows only what is on screen reaches the stated end state.* Audited against
+`sources/uv-getting-started.md` on 2026-09-28, the source document scores **5 of
+8 gap classes present at all**, and **0 of 7 steps carry a failure path** while
+**1 of 7 has no command**. It is a good explainer and a bad session script.
+
+So there are now **two artifacts**, and conflating them is the cause of the gaps:
+
+| artifact | job | provenance |
+|---|---|---|
+| **source document** | what the channel teaches | `[MEASURED]` / `[CITED]`, tagged per claim |
+| **storyboard** | what the video shows, and what a learner can follow | an executable data file |
+
+**The storyboard is the single source for two consumers** — the renderer and the
+replay/learner-only harness. That is the whole reason it is data rather than
+prose: a harness that parsed a transcript of the finished video would be testing
+the transcription, not the video, which is the drift class §14 has now caught four
+times. It lives at `storyboards/uv-install.storyboard.json`: **5 chapters, 15
+steps**, of which **14 are replayable and 1 is not** — `install-uv`, because it
+installs software and rewrites the shell profile, so re-running it would change the
+machine under the test. It is exempt **with a stated reason**, and the loader
+refuses an exemption that has none.
+
+**The six-field step contract**, extending the existing `CommandClaim` rather than
+inventing a second type:
+
+| field | severity | why |
+|---|---|---|
+| `purpose` | blocking | a step with no reason is not memorable |
+| `precondition` | blocking | this is what declares unshown state |
+| `command` | blocking | render-blocking under reject-never-repair |
+| `expected_output_pattern` | blocking | a **pattern**, never a literal: the cited docs reference `uv 0.12.19` while this box runs `0.12.2` |
+| `state_change` | blocking | without it, directory drift is undetectable |
+| `checkpoint` | blocking | "you should see this before continuing" |
+| `common_failure` | **warning** | an undocumented failure costs one learner a session; repair-invention would put an unrun command on screen |
+
+**Three checks ship, and each was shown a wrong input first.** Contract
+completeness, elision (`...`, `<placeholder>`, `$VAR`, redaction markers), and
+**unshown-state** — every path a command touches must be produced by an earlier
+step, created by this one, or named in a precondition.
+
+**The unshown-state check found three false alarms in its first run, and all three
+were bugs in the check**, which is worth recording because two of them were
+false *negatives* in a check whose only job is catching omissions:
+
+- a trailing full stop became part of the token, so `Creates src/main.py.` yielded
+  `src/main.py.` and the step that *creates* the file looked like it did not;
+- `https://astral.sh/uv/install.sh` read as a local path `astral.sh/uv/install.sh`,
+  reporting every install step as depending on a nonexistent file;
+- `expected_output_pattern` was scanned for paths that must pre-exist, but it is
+  what a step **prints** — so every checkpoint was reported as an unshown
+  dependency, and a checkpoint's job is precisely to name a path the learner
+  should now see.
+
+**Four mutations are permanent tests**, because a validator that has only ever been
+shown a true statement is untested: removing the step that creates `src/main.py`
+(which is the exact defect the source document shipped with), blanking a command,
+eliding a command, and stripping a `replay_skip_reason`. All four are caught.
+
+**The constant this breaks.** 3–5 minutes per chapter across 5 chapters is
+**15–25 minutes**. This design was built around a 4-minute video with
+`MIN_SCENES = 5` and `TARGET_MAX_SCENES = 8`, and **an install session with a
+prerequisites card, a checkpoint per step and a failure scene does not fit that
+budget** — not marginally. **Chaptered mode becomes the delivery shape**, and
+`TARGET_MINUTES` and the scene budget change with it. That is a live open item,
+stated here rather than discovered at V4 when `plan_lesson` refuses a legal-looking
+plan. *The scene budget is per **chapter**, not per video.*
+
+**The interpreter download, now measured.** A first-time learner pays a wait and
+**111 MB** (`~/.local/share/uv/python` measures 111M, containing
+`cpython-3.12.13-linux-x86_64-gnu`). This machine's copy has mtime **2026-08-13**,
+46 days before the session was written, so **the recorded run downloaded nothing** —
+which is exactly why an unmeasured claim about it would have been false. The wait is
+therefore shown honestly in the storyboard's `state_change` rather than silently
+sped up.
+
 ## 13. Acceptance criteria
 
 1. `doc-to-video-channel --help` prints usage listing all five declared verbs and

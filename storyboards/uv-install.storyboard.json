@@ -1,0 +1,248 @@
+{
+  "schema_version": 1,
+  "id": "uv-install",
+  "title": "Installing and using uv: a follow-along session",
+  "provenance": {
+    "kind": "measured-and-cited",
+    "source_document": "sources/uv-getting-started.md",
+    "authored_by": "doc-to-video-channel agent",
+    "authored_on": "2026-09-28",
+    "citations": [
+      {
+        "claim": "Standalone installer, the install command for this session",
+        "url": "https://docs.astral.sh/uv/getting-started/installation/",
+        "page_date": "2026-09-24",
+        "retrieved_on": "2026-09-28",
+        "verbatim": "curl -LsSf https://astral.sh/uv/install.sh | sh"
+      },
+      {
+        "claim": "A new shell is required after the installer edits shell profiles",
+        "url": "https://docs.astral.sh/uv/getting-started/installation/",
+        "page_date": "2026-09-24",
+        "retrieved_on": "2026-09-28",
+        "verbatim": "Then restart the shell or source the shell config file."
+      },
+      {
+        "claim": "Uninstall path, and the pre-0.5.0 ~/.cargo/bin gotcha",
+        "url": "https://docs.astral.sh/uv/getting-started/installation/",
+        "page_date": "2026-09-24",
+        "retrieved_on": "2026-09-28",
+        "verbatim": "rm ~/.local/bin/uv ~/.local/bin/uvx"
+      }
+    ],
+    "environment_of_record": {
+      "uv": "0.12.2 (x86_64-unknown-linux-gnu)",
+      "python3_system": "3.14.4",
+      "os": "Linux",
+      "note": "The cited documentation references uv 0.12.19. This machine runs 0.12.2, seventeen patch versions behind, so every expected_output in this storyboard is a PATTERN and never a literal version string."
+    }
+  },
+  "chapters": [
+    {
+      "id": "install-and-verify",
+      "title": "Install uv and prove it works",
+      "start_state": "A Linux or macOS shell. `uv` is NOT installed. `curl` is present. Network access is available.",
+      "goal": "A shell where `uv --version` succeeds.",
+      "steps": [
+        {
+          "id": "install-uv",
+          "purpose": "Install uv from Astral's standalone installer.",
+          "precondition": "Network available; `curl` present; on macOS or Linux.",
+          "command": "curl -LsSf https://astral.sh/uv/install.sh | sh",
+          "expected_output_pattern": "(?i)(installed|downloading).*(uv|uvx)|\\.local/bin",
+          "checkpoint": "The installer names the directory it installed into.",
+          "state_change": "Creates ~/.local/bin/uv and ~/.local/bin/uvx; appends a PATH line to the shell profile.",
+          "common_failure": "If `curl` is absent the command fails with `curl: command not found`; use the `wget -qO- ... | sh` form from the same page.",
+          "replayable": false,
+          "replay_skip_reason": "Installs software and rewrites the shell profile. Verified by citation and by the measured install location, not by re-execution. This step is the one place where re-running is not merely expensive but changes the machine under the test."
+        },
+        {
+          "id": "prove-not-on-path",
+          "purpose": "Show the trap: this shell still cannot find uv.",
+          "precondition": "The install step has run. The CURRENT shell was open before the install.",
+          "command": "uv --version",
+          "expected_output_pattern": "uv: (command )?not found|sh: .*not found",
+          "checkpoint": "You see `not found` even though the install succeeded. This is expected.",
+          "state_change": "None. Nothing is installed or removed by this step.",
+          "common_failure": "Learners read this as a failed install. It is not -- the binary is on disk; the open shell has not re-read the profile.",
+          "replayable": true
+        },
+        {
+          "id": "prove-present-after-new-shell",
+          "purpose": "Open a new shell and prove the install worked.",
+          "precondition": "The install step has run.",
+          "command": "bash -lc 'command -v uv'",
+          "expected_output_pattern": "\\.local/bin/uv",
+          "checkpoint": "The path printed ends in `/uv` and is under your home directory.",
+          "state_change": "A login shell reads ~/.profile, which is where the installer added ~/.local/bin to PATH.",
+          "common_failure": "If this still prints nothing, the installer did not edit your profile. Re-run with the version-pinned URL from the same documentation page.",
+          "replayable": true
+        },
+        {
+          "id": "record-version",
+          "purpose": "Record the version every later expectation is written against.",
+          "precondition": "The install step has run.",
+          "command": "uv --version",
+          "expected_output_pattern": "^uv \\d+\\.\\d+\\.\\d+",
+          "checkpoint": "You have a three-part version number written down.",
+          "state_change": "None.",
+          "common_failure": "A version below 0.5.0 installed into ~/.cargo/bin, so `which uv` may point there. See the uninstall note on the cited page.",
+          "replayable": true
+        }
+      ]
+    },
+    {
+      "id": "first-project",
+      "title": "Create a first project",
+      "start_state": "`uv` on PATH. A directory you can write to. No project exists here yet.",
+      "goal": "A project directory with a `pyproject.toml` you did not have to write by hand.",
+      "steps": [
+        {
+          "id": "make-project-dir",
+          "purpose": "Choose where the project lives, and say it out loud on screen.",
+          "precondition": "A writable directory.",
+          "command": "mkdir -p uv-demo && cd uv-demo && pwd",
+          "expected_output_pattern": "/.*uv-demo$",
+          "checkpoint": "The printed path ENDS IN `uv-demo`. This is the step that stops directory drift later.",
+          "state_change": "Creates the working directory uv-demo and makes it the current directory.",
+          "common_failure": "If the path does not end in uv-demo, you are somewhere else and every later relative path will be wrong.",
+          "replayable": true
+        },
+        {
+          "id": "init-project",
+          "purpose": "Generate the project files.",
+          "precondition": "Current directory is the uv-demo directory created by make-project-dir.",
+          "command": "uv init --name uv-demo",
+          "expected_output_pattern": "Initialized project `uv-demo`",
+          "checkpoint": "Three things exist: pyproject.toml, README.md, src.",
+          "state_change": "Creates pyproject.toml, README.md and src/ in the current directory.",
+          "common_failure": "If uv is not on PATH this fails with `uv: not found` -- go back to chapter 1.",
+          "replayable": true
+        },
+        {
+          "id": "show-requires-python",
+          "purpose": "Show the one line that everything later depends on.",
+          "precondition": "init-project has run.",
+          "command": "grep requires-python pyproject.toml",
+          "expected_output_pattern": "requires-python\\s*=\\s*[\"']>=3\\.12[\"']",
+          "checkpoint": "You can read the Python constraint aloud. It is a constraint, not a comment.",
+          "state_change": "None.",
+          "common_failure": "A constraint like >=3.99 that names no real interpreter makes every later command fail; see the negative scene in chapter 5.",
+          "replayable": true
+        }
+      ]
+    },
+    {
+      "id": "add-dependencies",
+      "title": "Add a dependency to the project",
+      "start_state": "A uv-demo project with an empty dependencies list.",
+      "goal": "A recorded requirement, and a resolved lockfile.",
+      "steps": [
+        {
+          "id": "add-requests",
+          "purpose": "Add a dependency, and let the tool record it.",
+          "precondition": "Current directory is the uv-demo project root, where pyproject.toml exists.",
+          "command": "uv add requests",
+          "expected_output_pattern": "\\+ requests==\\d",
+          "checkpoint": "You see `requests==` with an EXACT pin, not a range, and you see the other packages it pulled in.",
+          "state_change": "Appends the requirement to pyproject.toml and writes uv.lock.",
+          "common_failure": "Running this outside the project root writes a new project instead of editing the existing one.",
+          "replayable": true
+        },
+        {
+          "id": "prove-recorded",
+          "purpose": "Prove the dependency is a project fact and not just an environment fact.",
+          "precondition": "add-requests has run.",
+          "command": "grep -A3 dependencies pyproject.toml",
+          "expected_output_pattern": "requests",
+          "checkpoint": "The dependency is visible in the file, not only in the terminal output.",
+          "state_change": "None.",
+          "common_failure": "If the file does not list it, the command ran somewhere else.",
+          "replayable": true
+        }
+      ]
+    },
+    {
+      "id": "lock-and-sync",
+      "title": "Lock and sync: two different jobs",
+      "start_state": "A project with one recorded dependency and a lockfile.",
+      "goal": "A lockfile you can review, and an environment that matches it.",
+      "steps": [
+        {
+          "id": "lock",
+          "purpose": "Resolve the graph and write down the answer, without installing anything.",
+          "precondition": "add-requests has run.",
+          "command": "uv lock",
+          "expected_output_pattern": "Resolved \\d+ packages? in",
+          "checkpoint": "A resolution count appears AND you notice no packages were installed.",
+          "state_change": "Writes uv.lock. Installs nothing. This distinction is the whole point of the step.",
+          "common_failure": "Treating lock as install; then you have no way to review a resolution before adopting it.",
+          "replayable": true
+        },
+        {
+          "id": "prove-lockfile-exists",
+          "purpose": "Prove the answer was written to a file you can commit.",
+          "precondition": "lock has run.",
+          "command": "ls -1 uv.lock",
+          "expected_output_pattern": "^uv\\.lock$",
+          "checkpoint": "The filename is exactly uv.lock.",
+          "state_change": "None.",
+          "common_failure": "If this fails, lock did not run in this directory.",
+          "replayable": true
+        }
+      ]
+    },
+    {
+      "id": "run-and-with",
+      "title": "Run code, and borrow a package for one command",
+      "start_state": "A locked project. The interpreter constraint has not yet been observed in action.",
+      "goal": "Code running in a project-local environment, and one throwaway dependency that is deliberately not recorded.",
+      "steps": [
+        {
+          "id": "create-main",
+          "purpose": "Create the file the next step runs. Shown on screen, because an unshown file is an unshown-state dependency.",
+          "precondition": "Current directory is the uv-demo project root.",
+          "command": "mkdir -p src && printf 'import sys\\nprint(f\"python {sys.version.split()[0]}\")\\n' > src/main.py",
+          "expected_output_pattern": "^$",
+          "checkpoint": "src/main.py now exists. This is the step that closed the `shown versus created` gap.",
+          "state_change": "Creates src/main.py.",
+          "common_failure": "If src/ does not already exist, mkdir -p creates it; without the -p the command fails when src is absent.",
+          "replayable": true
+        },
+        {
+          "id": "run-main",
+          "purpose": "See the project constraint enforced as an interpreter choice.",
+          "precondition": "create-main has run. A network fetch of a managed interpreter may occur on a clean machine.",
+          "command": "uv run python src/main.py",
+          "expected_output_pattern": "python 3\\.\\d+\\.\\d+",
+          "checkpoint": "The printed version is a 3.12.x, NOT necessarily the system python3. That difference is the lesson.",
+          "state_change": "Creates .venv/ in the project. May download a managed interpreter on a clean machine -- measured 111 MB on this one, already cached since 2026-08-13, so this run fetched nothing.",
+          "common_failure": "ModuleNotFoundError means you ran before `uv add`; see the negative scene at the end of this chapter.",
+          "replayable": true
+        },
+        {
+          "id": "with-rich",
+          "purpose": "Borrow a package for exactly one command, and prove it was not recorded.",
+          "precondition": "run-main has run.",
+          "command": "uv run --with rich python -c \"import rich; print('borrowed')\"",
+          "expected_output_pattern": "borrowed",
+          "checkpoint": "The word `borrowed` prints, which means the import worked.",
+          "state_change": "Installs rich into a temporary environment. Writes NOTHING to pyproject.toml or uv.lock.",
+          "common_failure": "Using --with for a dependency the project actually needs; it will be missing on the next machine and nobody will know why.",
+          "replayable": true
+        },
+        {
+          "id": "prove-with-not-recorded",
+          "purpose": "Prove the throwaway really was not recorded.",
+          "precondition": "with-rich has run.",
+          "command": "grep -c rich pyproject.toml uv.lock",
+          "expected_output_pattern": "^(pyproject\\.toml|uv\\.lock):0$",
+          "checkpoint": "BOTH files report 0.",
+          "state_change": "None.",
+          "common_failure": "A non-zero count means the package was recorded, so it was added the wrong way.",
+          "replayable": true
+        }
+      ]
+    }
+  ]
+}

@@ -141,6 +141,36 @@ THE SOURCE DOCUMENT -- WRITTEN. sources/uv-getting-started.md
   7 numbered concepts, against MIN_SCENES=5 and TARGET_MAX_SCENES=8.
 
 
+THE STORYBOARD -- BUILT. storyboards/uv-install.storyboard.json
+  5 chapters, 15 steps, 6-field step contract on every step. 14 replayable, 1 not
+  (install-uv: it installs software and rewrites the shell profile, so re-running
+  changes the machine under the test -- exempt WITH a stated reason).
+  src/doc_to_video_channel/storyboard.py loads and checks it: contract
+  completeness, elision, and unshown-state. 23 tests, 4 of which are MUTATIONS
+  proving the checks can fail.
+  The unshown-state check found 3 false alarms on its first run and ALL 3 were
+  bugs in the check -- two of them false NEGATIVES. Fixed: trailing full stop, URL
+  read as a local path, and expected_output scanned for pre-existing paths when it
+  is what a step PRINTS.
+  Ruled: the storyboard is the SINGLE source for two consumers -- the renderer and
+  the replay/learner-only harness. A harness that parsed a transcript of the
+  finished video would test the transcription, not the video.
+
+OPEN, AND IT BREAKS A CONSTANT: CHAPTERED MODE.
+  3-5 min per chapter x 5 chapters = 15-25 min. This design assumed a 4-minute
+  video with MIN_SCENES=5 and TARGET_MAX_SCENES=8. An install session with a
+  prerequisites card, a checkpoint per step and a failure scene does NOT fit that
+  budget. TARGET_MINUTES and the scene budget must change, and the budget is per
+  CHAPTER, not per video. Better decided now than when plan_lesson refuses a
+  legal-looking plan at V4.
+
+STILL TO BUILD: the replay + learner-only HARNESS.
+  The validator is done; nothing executes commands yet. Harness must refuse every
+  replayable:false step, run each command, match expected_output_pattern, and
+  check state continuity against a real filesystem. Learner-only -- run ONLY what
+  is on screen -- is the strongest of the eight tests and the one not yet built.
+
+
 TODO -- BUILD ORDER (0 of 8 done)
 ---------------------------------
 [x] V-1   SPARK: 5-scene uv render, model-free, direct renderer API (NOT the
