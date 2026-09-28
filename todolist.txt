@@ -100,6 +100,13 @@ number outlives the thing it measured. Three times in two days. **Run these:**
                                            # the 7 vendored test files carry 74
                                            # errors. Ours are typed and stay typed.
   COVERAGE   .venv/bin/pytest --cov --cov-report=term-missing
+             ^ The default report is SCOPED to our own 5 modules by an `include`
+               in pyproject's [tool.coverage.report], and fail_under = 95 applies
+               to that scope. The whole-tree figure is a DIFFERENT number and is
+               not blended into it -- see "COVERAGE, AND WHY 18% IS NOT A
+               REGRESSION" below.
+  VENDORED   .venv/bin/python -m coverage report --include="*/studio/*" --fail-under=0
+    COVERAGE   # the --fail-under=0 matters: the 95 floor is scoped to our code
   HARNESS    .venv/bin/python -m doc_to_video_channel.harness \
                storyboards/uv-install.storyboard.json
   MANIFEST   .venv/bin/python -m doc_to_video_channel.vendor verify
@@ -387,6 +394,41 @@ BASELINE PATH -> OUR PATH. Read this before looking for a file.
   There is NO flat path. doc_to_video_channel.util raises ModuleNotFoundError, and
   a test holds it that way, because two spellings of one module is the drift the
   dropped facade existed to prevent.
+
+=============================================================================
+COVERAGE, AND WHY 18% IS NOT A REGRESSION
+=============================================================================
+  MEASURED at V5, and the 18% is two populations blended, which is the mistake:
+      OURS      476 statements, 98.5%   (was 92.0% before this cycle)
+      VENDORED  5,342 statements, 12-16% (statement vs branch)
+      whole tree 5,818 statements, ~18%
+  The vendored figure is low for ONE reason: the reference's 7 test files exercise
+  those modules and they arrive at V6. It is not that nobody tests them.
+
+  REAL WORK THIS FOUND, in our own code: planning_harness.main() had ZERO
+  coverage and was 100% of the 38 missed statements in our modules. The function
+  whose entire job is reporting honestly about whether it ran was never called --
+  because rewriting the V4 section at V5 dropped the one call. Its full decision
+  tree is now covered: help, self-test failure (exit 3), unrunnable tree (exit 2),
+  zero bindings patched (exit 1), ONE binding patched (exit 1, because a
+  half-measured differential is worse than none), and both patched (exit 0).
+  Ours went 92.0% -> 98.5%.
+
+  A FLOOR NOW EXISTS, and the first attempt at scoping it was the WRONG TOOL.
+  `[tool.coverage.run] omit = ["*/studio/*"]` scopes a floor by UNMEASURING the
+  files: the 17 studio/ modules vanished from the report entirely, so V6 lost the
+  ~13% baseline it has to measure improvement against. `include` in
+  [tool.coverage.report] scopes the floor and the printed table while leaving every
+  file in the measurement database -- verified, 23 files measured, 18 under
+  studio/. fail_under = 95 over our 476 statements, and it BITES: a module-sized
+  untested block takes it to 78.8% and the run exits 1 without a single test
+  failing.
+
+  A GLOBAL floor over all 5,818 statements is V6's to publish, once the vendored
+  tests land and that second population exists. Two numbers, two populations; a
+  single blended percentage is the "unclaimed 0 beside 12" mistake this project
+  already has a ledger row about.
+
 
 =============================================================================
 V5 -- DONE. 6,821 lines. THE TREE IMPORTS. THE CHOKEPOINT WORKS.

@@ -81,16 +81,15 @@ omit = ["*/__main__.py"]
 
 [tool.coverage.report]
 show_missing = true
+fail_under = 95
+# Scope the FLOOR to our own code WITHOUT excluding studio/ from measurement.
+include = ["src/doc_to_video_channel/*.py"]
 exclude_lines = [
   "pragma: no cover",
   "if __name__ == .__main__.:",
   "raise NotImplementedError",
   "if TYPE_CHECKING:",
 ]
-# NO fail_under yet, deliberately. The engine's floor is 58 against a measured
-# baseline; this package has one function, so any floor would be a number with
-# no population behind it. It gets set when there is code to measure over --
-# a floor stated before the measurement is a stored claim, not a gate.
 
 [dependency-groups]
 dev = [

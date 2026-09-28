@@ -152,3 +152,104 @@ def test_the_harness_no_longer_reports_that_it_cannot_run() -> None:
 
     runnable, why = ph.plan_lesson_is_runnable()
     assert runnable, f"plan_lesson must be callable at V5: {why}"
+
+
+# --- planning_harness.main(): the decision tree, and it was ENTIRELY untested ---
+#
+# Measured: `main()` had ZERO coverage and accounted for 100% of the 38 missed
+# statements in this project's own code. The function whose whole job is reporting
+# honestly about whether it ran was itself never called -- because rewriting the V4
+# section at V5 dropped the one call. So the tree is covered branch by branch, and
+# each branch asserts the code that makes it reachable.
+
+
+def test_help_prints_the_docstring_and_asks_for_no_run(capsys: pytest.CaptureFixture[str]) -> None:
+    from doc_to_video_channel import planning_harness as ph
+
+    assert ph.main(["--help"]) == ph.EXIT_CANNOT_RUN
+    assert "vary within a run" in capsys.readouterr().out
+
+
+def test_a_constant_stub_makes_the_harness_refuse_to_report(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """A self-test failure must stop the run with its OWN code, not a pass.
+
+    `EXIT_SELF_TEST_FAILED` is 3, distinct from 0 and from 2. If a broken stub
+    produced a pass, the harness would be certifying a measurement it never made --
+    which is the failure the whole LLD section is about.
+    """
+    from doc_to_video_channel import planning_harness as ph
+
+    def constant() -> tuple[bool, str]:
+        return False, "the stub is constant: two calls produced identical responses"
+
+    monkeypatch.setattr(ph, "self_test", constant)
+    assert ph.main([]) == ph.EXIT_SELF_TEST_FAILED == 3
+    assert "not runnable" not in capsys.readouterr().out
+
+
+def test_an_unrunnable_tree_is_named_not_reported_as_a_pass(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    from doc_to_video_channel import planning_harness as ph
+
+    monkeypatch.setattr(
+        ph, "plan_lesson_is_runnable", lambda: (False, "No module named 'x'")
+    )
+    assert ph.main([]) == ph.EXIT_CANNOT_RUN
+    out = capsys.readouterr().out
+    assert "No module named 'x'" in out, "the blocker must be named, not just refused"
+
+
+def test_no_patched_binding_is_a_failure_not_a_pass(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Zero bindings patched means nothing was measured, and that is a FAILURE.
+
+    Not exit 2: the tree is fine, the harness is broken. And not 0.
+    """
+    from doc_to_video_channel import planning_harness as ph
+
+    monkeypatch.setattr(ph, "install_stub", list)
+    assert ph.main([]) == ph.EXIT_FAILED == 1
+    assert "nothing would be measured" in capsys.readouterr().out
+
+
+def test_one_patched_binding_is_a_failure_because_narration_is_untested(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """The trap the LLD says cost two review rounds, made executable.
+
+    Patching only `plan` measures the plan chain and is blind to narration. That
+    must be a failure, because a half-measured differential is worse than none: it
+    reports a determinism result for a chain it never touched.
+    """
+    from doc_to_video_channel import planning_harness as ph
+
+    monkeypatch.setattr(ph, "install_stub", lambda: ["plan"])
+    assert ph.main([]) == ph.EXIT_FAILED
+    assert "narration chain is untested" in capsys.readouterr().out
+
+
+def test_both_bindings_patched_is_the_only_path_to_success(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """The real tree, unpatched into a state where both bindings exist."""
+    from doc_to_video_channel import planning_harness as ph
+
+    assert ph.main([]) == ph.EXIT_OK == 0
+    out = capsys.readouterr().out
+    assert "'plan'" in out and "'narration'" in out
+
+
+def test_every_exit_code_the_harness_can_return_is_distinct() -> None:
+    """Four codes, four meanings, and no two may collide.
+
+    A wrapper branches on the number; two branches sharing a number is the defect
+    `publish` was withdrawn for, reproduced inside a helper.
+    """
+    from doc_to_video_channel import planning_harness as ph
+
+    codes = [ph.EXIT_OK, ph.EXIT_FAILED, ph.EXIT_CANNOT_RUN, ph.EXIT_SELF_TEST_FAILED]
+    assert len(set(codes)) == len(codes), f"colliding exit codes: {codes}"
