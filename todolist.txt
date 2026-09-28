@@ -461,6 +461,31 @@ V6 -- DONE. 315 REFERENCE TESTS LANDED. AND THEY FALSIFIED A V4 RULING.
   deviation, and nothing caught it because verify was never re-run after it).
   134 -> 10, then -> 0 once the 2 data files were vendored.
 
+  TWO MORE CLAIMS OF MINE FALSIFIED BY THE OWNER'S QUESTION, both about this tree:
+  1. "the manifest was written for the facade-present state, so the V4/V5 edit was the
+     unmanifested deviation and `verify` was simply never re-run after it." FALSE on the
+     mechanism. `build_manifest` and `verify_manifest` both take `root = engine_root(
+     engine)` -- they read `../doc-to-video-tutor`, NEVER `src/`. So `exists`, `lines`
+     and `sha256` describe the BASELINE at VENDOR_REF, not our copy, and `verify`
+     could not have caught the deviation under any circumstances. It was not "never
+     re-run"; there was nothing to catch. The manifest verifies the reference is still
+     the reference, which is a real check, and it is not a drift detector for our tree.
+  2. "is the tree as the LLD says?" -- it was NOT. The LLD row 18 said `drop` and I had
+     edited it to `copy`, while `vendor.py`'s MODULES table and the manifest still said
+     `drop`. The document and the generator disagreed, and 5 test sites plus the
+     write-output test still asserted the 16/3 / 10,492 / 505 partition. Now 17/2 /
+     10,710 / 287, total unchanged at 10,997, and `test_the_totals_close` re-derives
+     both partitions from the §5.1 per-module line counts rather than carrying digits.
+     `by_step` gains V6: 218.
+     Also fixed: `on_disk_in_studio` subtracted `{"__init__.py"}` on the premise that
+     the facade was ours; with it shipped, the manifest listed it as landed and the set
+     did not -- a test that would have kept passing with both halves wrong.
+  3. `exists` is a DEAD FIELD for all 2 remaining drop entries: the baseline has every
+     file at the pinned ref by construction, so it can never be false. It says "present
+     at VENDOR_REF", not "present in our tree", and the name invites the second
+     reading. Not changed -- it is a provenance claim, and renaming it is a schema
+     change with no consumer that needs it yet.
+
   LLD CORRECTED, not deleted: §5.1 row 18 rewritten to copy + the reversal and its
   cost; §12.7 retitled and its body replaced (it argued for the conclusion its own
   evidence refutes); §14.7 marked REVERSED. Six places asserted "drop" and every one

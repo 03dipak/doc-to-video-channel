@@ -35,8 +35,12 @@ SECTION_5_1 = {
     "studio/config.py": 356, "studio/voice.py": 341, "studio/duration.py": 285,
     "studio/llm.py": 283, "studio/util.py": 230, "studio/schema.py": 123,
     "studio/topics.py": 88,
+    # V6: the re-export facade. RULED drop at V4/V5, REVERSED at V6 -- 134 of the 315
+    # reference tests fail without it. §5.1's own paragraph already recorded the 48
+    # private names reached through it, so the ruling contradicted its own section.
+    "studio/__init__.py": 218,
 }
-DROPPED = {"__init__.py": 280, "studio/__init__.py": 218, "studio/__main__.py": 7}
+DROPPED = {"__init__.py": 280, "studio/__main__.py": 7}
 
 needs_engine = pytest.mark.skipif(
     not vendor.engine_root(ENGINE).is_dir(),
@@ -96,12 +100,19 @@ def test_every_line_count_matches_section_5_1(manifest: dict[str, Any]) -> None:
 
 
 def test_the_totals_close(manifest: dict[str, Any]) -> None:
-    """16 + 3 = 19 modules, and 10,492 + 505 = 10,997 lines."""
+    """17 + 2 = 19 modules, and 10,710 + 287 = 10,997 lines.
+
+    The totals are the REFERENCE's line counts, re-derived from §5.1, and the total is
+    unchanged at 10,997 because the facade moved between the two partitions rather than
+    in or out of the tree. Stating the partition as 17/2 rather than 16/3 matters: the
+    count is the thing that records which ruling is in force, and a manifest that kept
+    16/3 while the file shipped would be describing a tree nobody has.
+    """
     totals = manifest["totals"]
-    assert totals["copy_modules"] == 16
-    assert totals["drop_modules"] == 3
-    assert totals["copy_lines"] == sum(SECTION_5_1.values()) == 10_492
-    assert totals["drop_lines"] == sum(DROPPED.values()) == 505
+    assert totals["copy_modules"] == 17
+    assert totals["drop_modules"] == 2
+    assert totals["copy_lines"] == sum(SECTION_5_1.values()) == 10_710
+    assert totals["drop_lines"] == sum(DROPPED.values()) == 287
     assert totals["total_lines"] == 10_997
     assert totals["copy_lines"] + totals["drop_lines"] == totals["total_lines"]
 
@@ -112,21 +123,22 @@ def test_the_build_order_accounts_for_every_line(manifest: dict[str, Any]) -> No
     §5.5 assigned 3 modules to V1, 2 to V2, 1 to V4 and 10 to V5, and stated V5 at
     9,326 lines. Measured, those ten modules are 6,821 -- and 955 + 211 + 2,505 +
     6,821 closes on 10,492 exactly, which is how 2,505 of double-counting survived
-    in a document that had been reviewed seven times.
+    in a document that had been reviewed seven times. V6 then added one module to
+    that closure and the arithmetic still closes, at 10,710.
     """
     by_step = manifest["by_step"]
-    assert by_step == {"V1": 955, "V2": 211, "V4": 2505, "V5": 6821}
+    assert by_step == {"V1": 955, "V2": 211, "V4": 2505, "V5": 6821, "V6": 218}
     assert sum(by_step.values()) == manifest["totals"]["copy_lines"]
 
 
 def test_every_copy_module_is_assigned_exactly_one_step() -> None:
     """An unassigned module would silently never be vendored."""
     copies = [m for m in vendor.MODULES if m.is_copy]
-    assert len(copies) == 16
-    known = {"V1", "V2", "V3", "V4", "V5"}
+    assert len(copies) == 17
+    known = {"V1", "V2", "V3", "V4", "V5", "V6"}
     unassigned = [m.path for m in copies if m.step not in known]
     assert not unassigned, f"copy modules with no build step: {unassigned}"
-    assert len({m.path for m in copies}) == 16, "a module is listed twice"
+    assert len({m.path for m in copies}) == 17, "a module is listed twice"
 
 
 def test_every_drop_says_never() -> None:
@@ -245,8 +257,8 @@ def test_write_reports_the_totals_it_measured(
     monkeypatch.setattr(vendor, "MANIFEST_PATH", target)
     assert vendor.main(["write"]) == 0
     out = capsys.readouterr().out
-    assert "16 copy = 10492 lines" in out
-    assert "3 drop = 505" in out
+    assert "17 copy = 10710 lines" in out
+    assert "2 drop = 287" in out
     assert "total 10997" in out
 
 
@@ -385,7 +397,13 @@ def test_vendored_and_original_modules_are_segregated() -> None:
     we wrote are indistinguishable from the three we copied.
     """
     package = Path(__file__).resolve().parents[1] / "src/doc_to_video_channel"
-    on_disk_in_studio = {p.name for p in (package / "studio").glob("*.py")} - {"__init__.py"}
+    # `__init__.py` is NO LONGER subtracted. It was, because the facade was ruled
+    # drop at V4/V5, so studio/__init__.py was OUR bare package marker and counting
+    # it here would have counted our file as vendored. V6 reversed that ruling, so
+    # the file is the reference's and belongs in the on-disk set. Left in place, the
+    # manifest correctly listed it as landed and this set did not -- the shape of a
+    # test that keeps passing while both halves are wrong.
+    on_disk_in_studio = {p.name for p in (package / "studio").glob("*.py")}
     originals = {p.name for p in package.glob("*.py")} - {"__init__.py"}
 
     # DERIVED from the manifest, not hardcoded. The first version asserted

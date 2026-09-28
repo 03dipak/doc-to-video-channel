@@ -199,7 +199,15 @@ MODULES: Final[tuple[Module, ...]] = (
          "NarrationVoice + registry",
     ),
     Module("__init__.py", "drop", "never", "every symbol is dead or is the deprecated shim"),
-    Module("studio/__init__.py", "drop", "never", "a re-export facade; no new subpackage"),
+    Module(
+        "studio/__init__.py",
+        "copy",
+        "V6",
+        "the re-export facade. RULED: drop at V4/V5, REVERSED at V6 -- 134 of the 315\n"
+        "    reference tests fail without it, every one an AttributeError over 48\n"
+        "    distinct names. The 48 was already recorded in LLD 5.1, which is where the\n"
+        "    ruling contradicted it",
+    ),
     Module("studio/__main__.py", "drop", "never", "serves python -m only; no second entry point"),
 )
 

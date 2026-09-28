@@ -197,9 +197,9 @@
     },
     {
       "path": "studio/__init__.py",
-      "decision": "drop",
-      "step": "never",
-      "reason": "a re-export facade; no new subpackage",
+      "decision": "copy",
+      "step": "V6",
+      "reason": "the re-export facade. RULED: drop at V4/V5, REVERSED at V6 -- 134 of the 315\n    reference tests fail without it, every one an AttributeError over 48\n    distinct names. The 48 was already recorded in LLD 5.1, which is where the\n    ruling contradicted it",
       "channel_edits": [],
       "exists": true,
       "lines": 218,
@@ -217,16 +217,17 @@
     }
   ],
   "totals": {
-    "copy_modules": 16,
-    "copy_lines": 10492,
-    "drop_modules": 3,
-    "drop_lines": 505,
+    "copy_modules": 17,
+    "copy_lines": 10710,
+    "drop_modules": 2,
+    "drop_lines": 287,
     "total_lines": 10997
   },
   "by_step": {
     "V1": 955,
     "V2": 211,
     "V4": 2505,
-    "V5": 6821
+    "V5": 6821,
+    "V6": 218
   }
 }
