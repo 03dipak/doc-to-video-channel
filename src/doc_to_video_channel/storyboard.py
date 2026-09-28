@@ -40,6 +40,7 @@ __all__ = [
     "find_unshown_state_dependencies",
     "load",
     "required_fields",
+    "spoken_command_trigrams",
 ]
 
 #: Tokens that make a command uncopyable. A learner pastes verbatim, so a literal
@@ -411,6 +412,42 @@ def _produces(command: str, path: str) -> bool:
                     return True
     return False
 
+
+
+_FLAG_WORDS: Final = {"-": "dash", "--": "dash dash"}
+
+
+def spoken_command_trigrams(command: str) -> list[str]:
+    """Every 3-gram inside a command's SPOKEN form, for use as protected terminology.
+
+    **This is the mechanism for LLD 12.6 (finding F1).** The trigram repeat gate
+    forbids a repeated 3-word phrase. Naming a command three times, as a practical
+    session must, produces three repeated 3-grams -- measured on the V-1 spike:
+    `run uv dash` x3, `uv dash dash` x3, `dash dash version` x3. Satisfying the gate
+    instead produced "try that same check once more", which a learner LISTENING
+    rather than looking cannot act on. The gate was right that the prose repeated
+    and wrong about what to do about it.
+
+    The resolution: a follow-along video must repeat its commands verbatim, so the
+    trigrams **inside a spoken command** are protected terminology, exactly as
+    source-derived terminology already is. What stays banned is repeated *prose*
+    around the command -- which is the repetition a listener actually notices.
+
+    A flag is spelled the way TTS says it: `--version` becomes `dash dash version`,
+    so the protected span matches the narration rather than the source text. That
+    matters, and it is the whole reason this is not a string search over the
+    command.
+    """
+    spoken: list[str] = []
+    for raw in command.split():
+        if raw.startswith("--"):
+            spoken.extend(["dash", "dash", raw[2:]])
+        elif raw.startswith("-"):
+            spoken.extend(["dash", raw[1:]])
+        else:
+            spoken.append(raw)
+    tokens = [w for w in re.findall(r"[A-Za-z0-9_]+", " ".join(spoken).lower()) if w]
+    return [" ".join(tokens[i : i + 3]) for i in range(max(0, len(tokens) - 2))]
 
 def find_undelivered_state_changes(board: Storyboard) -> list[Gap]:
     """Promised state the command cannot be shown to deliver.

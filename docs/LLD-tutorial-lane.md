@@ -1513,6 +1513,71 @@ against a 25-minute plan, because no render has been produced at the new size. T
 first chapter render is the measurement, and if the scene budget or the duration
 estimator is wrong at this scale, that render will say so.
 
+### 12.6 The repeat gate protects commands, not prose (RULED, mentor, 2026-09-28)
+
+This is finding **F1** from the V-1 spike, and it blocked any real video until now.
+
+**The conflict, measured.** Instrument 4 of `AC#30` requires the narration to
+**name the command on screen**. The repeat gate forbids a repeated 3-word phrase.
+Naming `uv --version` three times, as a three-scene chapter must, produces three
+repeated 3-grams: `run uv dash` ×3, `uv dash dash` ×3, `dash dash version` ×3 —
+**confirmed against the real gate, not reasoned about.**
+
+Satisfying the gate instead produced *"try that same check once more"*, which a
+learner **listening** rather than looking cannot act on. The gate was right that the
+prose repeated and wrong about what to do about it: it was protecting the one
+repetition a follow-along video is *required* to make.
+
+**RULED: a command the storyboard declares on screen is protected terminology, and
+the repeat gate continues to govern the prose around it.**
+
+The mechanism is `spoken_command_trigrams`, in `storyboard.py`, and it feeds the
+plan's existing `protected_trigrams` — the same channel source-derived terminology
+already uses. Three properties make it correct rather than convenient:
+
+1. **A flag is spelled the way TTS says it.** `--version` becomes
+   `dash dash version`, so the protected span matches the *narration* being gated.
+   A string search over the command would protect `uv --version` while the text
+   under examination is `uv, dash, dash, version`, and the two never match. This is
+   why the mechanism is a tokeniser and not a search.
+2. **It derives from a declaration.** The commands come from the storyboard, so the
+   protection is a claim a human can falsify by reading — the same discipline that
+   replaced the `creates_indirectly` inference (§12.4).
+3. **It is narrow.** Only trigrams **inside** a command's spoken span are protected.
+   A window straddling the command/prose boundary is **not**, and measured: with the
+   protection in place the gate went from **3 findings to 1**, and the survivor was
+   `dash version and` — real prose repetition, because two sentences both said
+   "and" after the command. Varying that connective cleared it. **The gate kept
+   catching prose repetition, which is the behaviour it is for.**
+
+**Proof it is load-bearing**, against the real gate with a five-scene fixture:
+without the protection, narration naming a command three times is **refused** (2
+banned phrases plus an unrepairable repeat); with it, the same narration **passes**.
+Both directions are permanent tests, and the test filters to the repeat gate's own
+findings — asserting on the whole gate would have failed for two unrelated
+`transition-only` findings and proved nothing about this mechanism.
+
+**Related, and why F1 could not be worked around instead.** `A43`: the
+baseline's `_entity_tokens` does not recognise short lowercase tool names. `uv`,
+`curl`, `astral`, `uvx`, `sh` and `bash` are **all** absent from the recognised set
+while `0.12.2` and `~/.local/bin/uv` are present — so the term a `uv` tutorial
+repeats most gets no protection from the mechanism that exists to protect
+terminology. Fixing that would be necessary and **is not sufficient**: the surviving
+`dash version and` contained no tool name at all. Both changes are needed, and only
+this one was available to us.
+
+**What this does not settle.** The narration-versus-screen instrument itself remains
+**unbuilt**, and that is now a recorded decision rather than an omission. Three
+mechanical versions were tried on the V-1 spike and the first two were wrong: a
+hardcoded "must say `uv`" failed because the install scene correctly names `curl`, and
+a full-token comparison failed because *"Astral's installer"* **is** speaking a URL.
+The third still reports false failures, because the narration says *"capital L, small
+s"* and *"dash, l, c"* — which **is** speaking `-LsSf` and `-lc`. A token comparison
+cannot know that a spelled-out flag is the flag. So the instrument needs a
+spelling-aware normaliser or a human, and until one exists `AC#30` instrument 4 is
+verified **by hand, for 4 of 5 scenes**, and the baseline is right to treat it as a
+`soft_finding`.
+
 ## 13. Acceptance criteria
 
 1. `doc-to-video-channel --help` prints usage listing all five declared verbs and

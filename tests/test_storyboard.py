@@ -17,6 +17,7 @@ from __future__ import annotations
 import copy
 import json
 import re
+import sys
 import tempfile
 from pathlib import Path
 from typing import Any
@@ -396,3 +397,107 @@ def test_a_promise_nothing_depends_on_is_documentation_not_a_gap() -> None:
     board, _ = sb.load(STORYBOARD)
     for gap in sb.find_undelivered_state_changes(board):
         assert "README.md" not in gap.detail, "a documented promise was reported as a gap"
+
+
+# --- F1: the trigram gate and narration-versus-screen, and the fix -----------
+#
+# Naming a command three times, as a practical session must, produced three
+# repeated 3-grams on the V-1 spike. Satisfying the gate instead produced "try
+# that same check once more", which a learner listening rather than looking cannot
+# act on. These tests pin the mechanism that resolves it.
+
+
+def test_a_flag_is_spoken_the_way_tts_says_it() -> None:
+    """`--version` becomes `dash dash version`, because that is the narration.
+
+    A string search over the command would protect `uv --version` while the text
+    being gated is `uv, dash, dash, version`. The two never match, which is why
+    this is not a search.
+    """
+    assert sb.spoken_command_trigrams("uv --version") == ["uv dash dash", "dash dash version"]
+    assert sb.spoken_command_trigrams("uv add requests") == ["uv add requests"]
+
+
+def test_a_short_flag_becomes_one_dash_word() -> None:
+    assert sb.spoken_command_trigrams("bash -lc x")[0] == "bash dash lc"
+
+
+def test_a_command_shorter_than_a_trigram_yields_nothing() -> None:
+    assert sb.spoken_command_trigrams("uv") == []
+    assert sb.spoken_command_trigrams("") == []
+
+
+def test_every_declared_command_contributes_protection() -> None:
+    """The storyboard is the declaration, so the protection derives from it.
+
+    `prove-not-on-path` and `record-version` both show `uv --version`; between them
+    that is the trigram a three-scene narration repeats, and it must be protected.
+    """
+    board, _ = sb.load(STORYBOARD)
+    protected = {g for s in board.steps() for g in sb.spoken_command_trigrams(s.command)}
+    assert "uv dash dash" in protected
+    assert "dash dash version" in protected
+
+
+def test_mutation_removing_the_protection_makes_the_gate_fail() -> None:
+    """The protection is load-bearing: without it the same narration is refused.
+
+    This is the F1 equivalent of a mutation test, and it is run against the real
+    baseline gate rather than a stand-in. It needs the engine on `sys.path`, so it
+    skips cleanly when the reference tree is not present -- and says so, rather
+    than passing vacuously.
+    """
+    engine = Path("/home/dipak/agentic/doc-to-video-tutor/src")
+    if not engine.is_dir():
+        pytest.skip("reference tree absent; the real gate cannot be consulted")
+    sys.path.insert(0, str(engine))
+    try:
+        from doc_to_video_tutor.studio.cli import _render_blocking_problems
+    except ImportError:  # pragma: no cover
+        pytest.skip("reference tree present but not importable")
+
+    # Five scenes, not three: MIN_SCENES is 5 and the gate refuses fewer, so a
+    # three-scene fixture fails on the scene count and the assertion below would
+    # pass for the wrong reason -- which is exactly how the first version of this
+    # test passed while proving nothing about trigrams.
+    narration = {
+        "Check what you have": "Start with uv, dash, dash, version, then press enter.",
+        "Install uv": "Next, install it with curl, dash, capital L, small s, piped into sh.",
+        "Prove it is not on PATH yet": "Now try uv, dash, dash, version once more. It fails.",
+        "Open a new shell": "The repair is a fresh shell, so run bash, dash, l, c, v.",
+        "Record the version": "Finally, uv, dash, dash, version, now succeeds.",
+    }
+    scenes = [
+        {
+            "topic": topic,
+            "narration": text,
+            "bullets": ["uv --version"] if topic != "Install uv" else ["curl ... | sh"],
+            "bullet_pages": [["uv --version"] if topic != "Install uv" else ["curl ... | sh"]],
+            "source_refs": ["t"],
+        }
+        for topic, text in narration.items()
+    ]
+    def trigram_findings(plan: dict[str, Any]) -> list[str]:
+        """Only the repeat-gate's own findings.
+
+        Asserting on the whole gate would test more than the mechanism: two of these
+        short scenes are also reported as transition-only, and a fix to the trigram
+        protection would still leave those, so the assertion would fail for reasons
+        that have nothing to do with F1.
+        """
+        return [
+            f
+            for f in _render_blocking_problems(plan)
+            if "banned narration phrase" in f or "unrepairable narration repeat" in f
+        ]
+
+    plan: dict[str, Any] = {"scenes": scenes, "protected_trigrams": []}
+    assert trigram_findings(plan), (
+        "narration naming a command three times must be refused without protection"
+    )
+
+    plan["protected_trigrams"] = sb.spoken_command_trigrams("uv --version")
+    assert not trigram_findings(plan), (
+        "the same narration must clear the repeat gate once its command's trigrams "
+        f"are protected, still reporting: {trigram_findings(plan)}"
+    )

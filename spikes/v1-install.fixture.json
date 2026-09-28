@@ -74,7 +74,7 @@
   "scenes": [
     {
       "topic": "Check what you have",
-      "narration": "Start by finding out which build of uv is already on this machine, so run uv, dash, dash, version. What comes back is a number and the platform it was built for. That number matters more than it appears, because behaviour differs across versions, and a session that skips this check cannot be debugged when it fails.",
+      "narration": "Start with uv, dash, dash, version, then press enter. What comes back is a number and the platform it was built for.",
       "bullets": [
         "uv --version",
         "Output is a version and a platform",
@@ -94,7 +94,7 @@
     },
     {
       "topic": "Install uv",
-      "narration": "Next, install it. The command is curl, dash, capital L, small s, capital S, small f, then the address of Astral's installer, piped into sh. That address comes from Astral's own page, dated the twenty fourth of September. Two binaries land under a folder inside your user account, and one line is added to the profile your shell reads at startup.",
+      "narration": "Next, install it. The command is curl, dash, capital L, small s, capital S, small f, then the address of Astral's installer, piped into sh.",
       "bullets": [
         "curl -LsSf https://astral.sh/uv/install.sh | sh",
         "Installs into ~/.local/bin",
@@ -114,7 +114,7 @@
     },
     {
       "topic": "Prove it is not on PATH yet",
-      "narration": "Run uv, dash, dash, version once more. It fails, and the message says uv cannot be found. This is the moment that surprises people, so watch for it. Nothing went wrong. The files are sitting on disk exactly as intended. What is stale is the shell you are typing into, which was already open before the profile changed, and it has not reread anything.",
+      "narration": "Now try uv, dash, dash, version once more. It fails, and the message says uv cannot be found. Nothing went wrong.",
       "bullets": [
         "uv --version",
         "Fails: command not found",
@@ -134,7 +134,7 @@
     },
     {
       "topic": "Open a new shell",
-      "narration": "The repair is to start a fresh shell, or to reload the profile by hand. Run bash, dash, l, c, command, v, uv, and now a path comes back. It ends in slash uv, and it sits under your account rather than in a system location. That output is the proof that the second step worked.",
+      "narration": "The repair is a fresh shell. Run bash, dash, l, c, command, v, uv, and now a path comes back, ending in slash uv.",
       "bullets": [
         "bash -lc 'command -v uv'",
         "Prints ~/.local/bin/uv",
@@ -154,7 +154,7 @@
     },
     {
       "topic": "Record the version",
-      "narration": "Run uv, dash, dash, version one final time, and now it succeeds. Write that number down, because it is the thing you will quote when something breaks. One edge case worth knowing: releases below zero point five landed somewhere else entirely, cargo's bin directory, so the lookup will point at a different location and the uninstall step on that same page removes a different path.",
+      "narration": "Finally, uv, dash, dash, version, now succeeds. Write that number down, because it is the thing you will quote when something breaks.",
       "bullets": [
         "uv --version",
         "Now it succeeds",
@@ -176,27 +176,70 @@
   "protected_trigrams": [
     "# v-1 spike",
     "## the path",
+    "0 5 0",
+    "0 installed to",
+    "5 0 installed",
     "> a fixture",
     "a fixture source",
+    "a new shell",
+    "a version and",
     "a version-pinned url",
+    "and a platform",
+    "astral sh uv",
+    "bash dash lc",
+    "below 0 5",
+    "command dash v",
+    "command depends on",
+    "command not found",
+    "curl dash lssf",
+    "dash dash version",
+    "dash lc command",
+    "dash lssf https",
+    "dash v uv",
+    "depends on it",
+    "edits your shell",
+    "every later command",
+    "fails command not",
     "fixture source for",
     "for the v-1",
     "gets no terminology",
+    "https astral sh",
+    "install sh sh",
+    "install still succeeded",
+    "installed to cargo",
+    "installs into local",
+    "into local bin",
+    "is a version",
+    "later command depends",
+    "lc command dash",
+    "local bin uv",
+    "lssf https astral",
+    "new shell reads",
     "no terminology protection",
+    "now it succeeds",
+    "output is a",
     "plan gets no",
+    "prints local bin",
+    "reads the edited",
+    "sh uv install",
+    "shell reads the",
+    "the edited profile",
+    "the install still",
     "the path trap",
     "the v-1 render",
+    "to cargo bin",
     "url is available",
+    "uv dash dash",
+    "uv install sh",
     "v-1 render spike",
     "v-1 spike source:",
-    "version-pinned url is"
+    "version and a",
+    "version-pinned url is",
+    "your shell profile"
   ],
-  "V1_TRIGRAM_EXEMPTION": {
-    "status": "DECLARED DEFECT, not an oversight",
-    "what": "This fixture's narration repeats the command 'uv --version' three times, which the trigram gate reads as 3 repeated 3-word phrases: 'run uv dash', 'uv dash dash', 'dash dash version'.",
-    "why_allowed_here": "Instrument 4 of AC#30 requires the narration to NAME the tool on screen. Removing the repetition to satisfy the gate produced 'try that same check once more', which a learner LISTENING rather than looking cannot act on -- the command is on screen and never spoken. The gate was right that the prose repeated; it was wrong about what to do about it.",
-    "scope": "V-1 SPIKE ONLY. run_v1.py reports this loudly and renders anyway. It is NOT a precedent: no published video may carry this exemption until the trigram gate is changed to ignore windows falling inside a declared command.",
-    "required_before_any_real_video": "A design ruling: the trigram ban applies to PROSE, not to a command the storyboard declares on screen. The gate must skip windows that fall inside a declared command string. Until then, a practical session cannot be narrated correctly.",
-    "measured": "'run uv dash' x3, 'uv dash dash' x3, 'dash dash version' x3, with uv NOT among the entity tokens _entity_tokens recognises -- so no source-derived protection applies to the one term a uv tutorial repeats most."
+  "F1_RESOLVED": {
+    "status": "The V-1 spike shipped with a declared trigram exemption. F1 is now RULED and the exemption is REMOVED.",
+    "how": "spoken_command_trigrams() in storyboard.py feeds this plan's protected_trigrams, so a command the storyboard declares on screen is protected terminology while the prose around it stays gated. See LLD 12.6.",
+    "gate": "0 blocking problems, verified against the real gate."
   }
 }

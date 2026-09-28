@@ -15,11 +15,15 @@ Two things, in this order. Nothing else is blocked.
 2. DONE: V-1, the render spike. RENDER PATH VERIFIED. See "V-1" below. Two
    findings came out of it and one of them blocks any real video -- see F1 below.
 
-3. THEN: F1, the trigram-gate ruling. The spike rendered, but a practical session
-   cannot be NARRATED correctly until the trigram ban skips windows that fall
-   inside a command the storyboard declares on screen. This is a design decision
-   and it is small: it belongs in the LLD, not in code. Nothing else is blocked
-   behind it -- V0 through V3 are mechanical.
+3. DONE: F1 is RULED and IMPLEMENTED. LLD 12.6. A command the storyboard declares
+   on screen is protected terminology; the prose around it stays gated.
+   spoken_command_trigrams() spells a flag the way TTS says it, so the protected
+   span matches the narration being gated rather than the command text -- which is
+   why it is a tokeniser and not a search. Proven against the REAL gate in both
+   directions: 3 findings -> 0 with the protection, and refused without it. The
+   spike's declared exemption is REMOVED and the fixture is now CLEAN.
+
+4. THEN: V0. Nothing is blocked now.
      RECIPE, recovered from the baseline's own render branch and re-measured:
        * Build a FIXTURE plan.json with 5 scenes. 5, not 1: MIN_SCENES is 5 and the
          gate refuses fewer in BOTH branches.
@@ -188,8 +192,28 @@ INSTRUMENTS: 3 PASS, 1 PARTIAL, 2 NOT MEASURABLE.
     gate, and the reason is worth reading before anyone tries to automate it.
 
 =============================================================================
-F1 -- THE TRIGRAM GATE AND NARRATION-VERSUS-SCREEN ARE INCOMPATIBLE
+F1 -- RULED AND FIXED. LLD 12.6. No longer blocks anything.
 =============================================================================
+The conflict was real and is recorded, because the fix depends on understanding it:
+naming a command three times, as instrument 4 requires, produced three repeated
+3-grams. Satisfying the gate instead produced "try that same check once more",
+which a learner listening rather than looking cannot act on. The gate was right
+that the prose repeated and wrong about what to do about it.
+
+THE FIX: spoken_command_trigrams() in storyboard.py. A flag is spelled the way TTS
+says it -- `--version` becomes `dash dash version` -- so the protected span matches
+the NARRATION being gated, not the command text. A string search would protect
+"uv --version" while the text under examination is "uv, dash, dash, version", and
+the two never match. That is why it is a tokeniser.
+
+It is also NARROW, which is the part that matters: only trigrams inside a command's
+spoken span are protected. Measured, the gate went 3 findings -> 1, and the survivor
+was "dash version and" -- genuine prose repetition, because two sentences both said
+"and" after the command. Varying the connective cleared it. THE GATE KEPT CATCHING
+PROSE REPETITION, which is the behaviour it exists for.
+
+ONCE, AND IT IS WORTH READING
+Original note, kept because the fix is unintuitive without the conflict:
 This blocks any real video and is a small design decision, not a code problem.
 
 Instrument 4 requires the narration to NAME the command on screen. The trigram gate
@@ -222,6 +246,23 @@ repeat gate deleting terminology. This is why F1 could not be worked around by
 source-derived protection. A vendored copy inherits it. Belongs in DECISIONS.md.
 
 =============================================================================
+NOT BUILT, AND IT IS A DECISION NOT AN OMISSION
+=============================================================================
+The narration-versus-screen INSTRUMENT. Three mechanical versions were tried on the
+spike and the first two were mine being wrong:
+  * "every clip must say uv" -- failed: the install scene correctly names curl.
+  * "every command token must be spoken" -- failed: saying "Astral's installer" IS
+    speaking a URL.
+  * "program and subcommand must be spoken" -- still reports 2 false failures,
+    because the narration says "capital L, small s, capital S, small f" and "dash,
+    l, c", which IS speaking -LsSf and -lc. A token comparison cannot know a
+    spelled-out flag is the flag.
+So the instrument needs a spelling-aware normaliser or a human. Until one exists,
+AC#30 instrument 4 is verified BY HAND for 4 of 5 scenes, and the baseline is right
+to treat it as a soft_finding. Do not build a fourth guess.
+
+
+=============================================================================
 BUILT AND PASSING
 =============================================================================
 sources/uv-getting-started.md
@@ -245,8 +286,9 @@ storyboards/uv-install.storyboard.json
   14 replayable; install-uv is NOT, because it installs software and rewrites the
   shell profile, so re-running it would change the machine under the test. Exempt
   WITH a stated reason, and the loader refuses an exemption that has none.
-  src/doc_to_video_channel/storyboard.py runs FIVE checks: contract completeness,
-  elision, unshown-state, undelivered-state, unjustified-env.
+  src/doc_to_video_channel/storyboard.py runs FIVE checks (contract completeness,
+  elision, unshown-state, undelivered-state, unjustified-env) and supplies
+  spoken_command_trigrams(), the F1 mechanism.
   23 tests, 5 of which are named `test_mutation_*` and prove the checks can fail:
   remove a creating step, blank a command, elide one, strip a replay_skip_reason,
   and prose claims creation the command does not make. Two further cases --
